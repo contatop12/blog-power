@@ -1,0 +1,2 @@
+-- Migration 001: schema inicial (idempotente via schema.sql)
+-- Use schema.sql para bootstrap; migrations futuras incrementais aqui.

@@ -1,0 +1,36 @@
+{
+  "name": "publisher-p12",
+  "private": true,
+  "workspaces": [
+    "types",
+    "execution",
+    "workers/api",
+    "workers/pipeline",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build -w types && npm run build -w execution",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:api": "npm run dev -w workers/api -- --port 8787",
+    "dev:pipeline": "npm run dev -w workers/pipeline -- --port 8788",
+    "dev:frontend": "npm run dev -w frontend -- --port 3000",
+    "build:frontend": "npm run build -w frontend",
+    "cf:build": "npm run cf:build -w frontend",
+    "cf:deploy:pipeline": "node scripts/cf-with-env.mjs npx wrangler deploy --config workers/pipeline/wrangler.jsonc",
+    "cf:deploy:api": "node scripts/cf-with-env.mjs npx wrangler deploy --config workers/api/wrangler.jsonc",
+    "cf:deploy:frontend": "npm run deploy -w frontend",
+    "cf:deploy:workers": "npm run cf:deploy:pipeline && npm run cf:deploy:api",
+    "cf:d1:local": "node scripts/cf-with-env.mjs npx wrangler d1 execute publisher-db --local --file=schema.sql --config workers/api/wrangler.jsonc",
+    "cf:d1:remote": "node scripts/cf-with-env.mjs npx wrangler d1 execute publisher-db --remote --file=schema.sql --config workers/api/wrangler.jsonc",
+    "cf:secrets:push:api": "node scripts/push-worker-secrets.mjs api",
+    "cf:secrets:push:pipeline": "node scripts/push-worker-secrets.mjs pipeline",
+    "cf:secrets:push:all": "node scripts/push-worker-secrets.mjs all",
+    "cf:validate": "node scripts/validate-cloudflare-config.mjs",
+    "cf:whoami": "node scripts/cf-with-env.mjs npx wrangler whoami"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

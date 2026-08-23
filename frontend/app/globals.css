@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0f1729;
+  --paper: #f7f4ef;
+  --paper-elevated: #ffffff;
+  --copper: #c17f3a;
+  --copper-hover: #a86a2e;
+  --mist: #e8e4dc;
+  --text-muted: #5c6478;
+  --danger: #b42318;
+  --success: #1a6b42;
+  --radius: 10px;
+  --shadow-soft: 0 8px 32px rgba(15, 23, 41, 0.08);
+}
+
+body {
+  @apply antialiased;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+@layer components {
+  .card-elevated {
+    background: var(--paper-elevated);
+    border: 1px solid var(--mist);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn-primary {
+    @apply inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition-colors;
+    background: var(--copper);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--copper-hover);
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex h-11 items-center justify-center rounded-lg border px-5 text-sm font-medium transition-colors;
+    border-color: var(--mist);
+    color: var(--ink);
+    background: var(--paper-elevated);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--paper);
+  }
+
+  .field-label {
+    @apply mb-1 block text-sm font-medium;
+    color: var(--text-muted);
+  }
+
+  .field-input {
+    @apply w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-shadow;
+    border-color: var(--mist);
+    background: var(--paper-elevated);
+  }
+  .field-input:focus {
+    box-shadow: 0 0 0 3px rgba(193, 127, 58, 0.25);
+    border-color: var(--copper);
+  }
+
+  .badge-ok {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    background: #e8f5ee;
+    color: var(--success);
+  }
+
+  .badge-warn {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    background: #fef3e8;
+    color: var(--copper);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
