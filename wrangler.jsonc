@@ -15,7 +15,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "publisher-db"
+      "database_name": "publisher-db",
+      "database_id": "190684c6-5af5-4712-8e0a-f7cc504242a1"
     }
   ],
   "r2_buckets": [
