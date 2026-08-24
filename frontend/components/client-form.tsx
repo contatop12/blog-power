@@ -3,14 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
-import {
-  SEO_PLUGINS,
-  arrayToLines,
-  emptyClientForm,
-  formatServicos,
-  linesToArray,
-  parseServicos,
-} from '@/lib/client-form'
+import { SEO_PLUGINS, emptyClientForm } from '@/lib/client-form'
 import type { Client, CreateClientInput } from '@publisher-p12/types'
 
 interface ClientFormProps {
@@ -32,13 +25,11 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
       timezone: initial.timezone,
       categoria_padrao_id: initial.categoria_padrao_id,
       autor_padrao_id: initial.autor_padrao_id,
-      perfil_marca: initial.perfil_marca ?? emptyClientForm().perfil_marca,
+      perfil_marca: null,
     }
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const perfil = form.perfil_marca!
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,7 +38,7 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
     try {
       const payload: CreateClientInput & { wp_app_password?: string } = {
         ...form,
-        perfil_marca: perfil,
+        perfil_marca: null,
       }
       if (!payload.wp_app_password) delete payload.wp_app_password
       await onSubmit(payload)
@@ -56,10 +47,6 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
     } finally {
       setSaving(false)
     }
-  }
-
-  function updatePerfil<K extends keyof typeof perfil>(key: K, value: (typeof perfil)[K]) {
-    setForm((f) => ({ ...f, perfil_marca: { ...f.perfil_marca!, [key]: value } }))
   }
 
   const inputClass = 'mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm'
@@ -141,87 +128,6 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
                 </option>
               ))}
             </select>
-          </label>
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Perfil de marca</CardTitle>
-        <p className="mt-1 text-sm text-zinc-500">
-          Contexto usado pelos agentes Redator e Editor. Quanto mais completo, melhor a qualidade.
-        </p>
-        <div className="mt-4 grid gap-4">
-          <label className="block text-sm">
-            Descrição institucional
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={perfil.descricao_institucional}
-              onChange={(e) => updatePerfil('descricao_institucional', e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            Segmentos atendidos (um por linha)
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={arrayToLines(perfil.segmentos_atendidos)}
-              onChange={(e) => updatePerfil('segmentos_atendidos', linesToArray(e.target.value))}
-            />
-          </label>
-          <label className="block text-sm">
-            Serviços (formato: Nome | URL — um por linha)
-            <textarea
-              className={inputClass}
-              rows={4}
-              value={formatServicos(perfil.servicos)}
-              onChange={(e) => updatePerfil('servicos', parseServicos(e.target.value))}
-            />
-          </label>
-          <label className="block text-sm">
-            Provas E-E-A-T (um por linha)
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={arrayToLines(perfil.provas_eeat)}
-              onChange={(e) => updatePerfil('provas_eeat', linesToArray(e.target.value))}
-            />
-          </label>
-          <label className="block text-sm">
-            Tom de voz
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={perfil.tom_de_voz}
-              onChange={(e) => updatePerfil('tom_de_voz', e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            Proibições editoriais (um por linha)
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={arrayToLines(perfil.proibicoes)}
-              onChange={(e) => updatePerfil('proibicoes', linesToArray(e.target.value))}
-            />
-          </label>
-          <label className="block text-sm">
-            CTA padrão
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={perfil.cta_padrao}
-              onChange={(e) => updatePerfil('cta_padrao', e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            Diretriz visual (imagens)
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={perfil.diretriz_visual}
-              onChange={(e) => updatePerfil('diretriz_visual', e.target.value)}
-            />
           </label>
         </div>
       </Card>
