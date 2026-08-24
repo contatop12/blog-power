@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ClientForm } from '@/components/client-form'
 import { MaterialsUpload } from '@/components/materials-upload'
-import { Button } from '@/components/ui/button'
+import { Button, buttonClass } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 import type { Client, ConnectionCheckResult } from '@publisher-p12/types'
@@ -30,12 +30,17 @@ export default function ClientDetailPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{client.nome}</h1>
-          <p className="text-sm text-zinc-600">{client.dominio}</p>
+          <h1 className="text-2xl font-bold text-slate-900">{client.nome}</h1>
+          <p className="text-sm text-slate-600">{client.dominio}</p>
         </div>
-        <Link href="/clients" className="text-sm text-blue-700 hover:underline">
-          ← Voltar
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href={`/articles/new?client_id=${id}`} className={buttonClass()}>
+            Novo artigo
+          </Link>
+          <Link href="/clients" className="text-sm text-blue-700 hover:underline">
+            ← Voltar
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-2 border-b border-zinc-200">

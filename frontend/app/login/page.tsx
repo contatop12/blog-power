@@ -39,11 +39,9 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4">
       <div className="card-elevated p-8">
-        <p className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--copper)' }}>
-          P12 Editorial
-        </p>
-        <h1 className="font-display mt-2 text-3xl font-semibold">Publisher P12</h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">P12 Editorial</p>
+        <h1 className="mt-2 text-3xl font-semibold text-slate-900">Publisher P12</h1>
+        <p className="mt-2 text-sm text-slate-600">
           Acesso restrito à equipe editorial. Tentativas inválidas são limitadas por segurança.
         </p>
 
@@ -72,15 +70,12 @@ export default function LoginPage() {
 
           {erro && (
             <div
-              className="rounded-lg border px-3 py-2 text-sm"
-              style={{ borderColor: '#f5c4c0', background: '#fef3f2', color: 'var(--danger)' }}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
               role="alert"
             >
               {erro}
               {tentativas !== null && tentativas > 0 && (
-                <span className="mt-1 block text-xs">
-                  Tentativas restantes: {tentativas}
-                </span>
+                <span className="mt-1 block text-xs">Tentativas restantes: {tentativas}</span>
               )}
               {bloqueado && (
                 <span className="mt-1 block text-xs">

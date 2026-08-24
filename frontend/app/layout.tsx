@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Nav } from '@/components/nav'
 import { AuthGuard } from '@/components/auth-guard'
-import { fontBody, fontDisplay } from '@/lib/fonts'
+import { fontSans } from '@/lib/fonts'
 
 export const metadata: Metadata = {
   title: 'Publisher P12',
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${fontDisplay.variable} ${fontBody.variable}`}>
+    <html lang="pt-BR" className={fontSans.variable}>
       <body>
         <AuthGuard>
           <Nav />

@@ -4,8 +4,8 @@ type ButtonVariant = 'default' | 'outline' | 'ghost'
 
 const variants: Record<ButtonVariant, string> = {
   default: 'bg-blue-700 text-white hover:bg-blue-800',
-  outline: 'border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-900',
-  ghost: 'hover:bg-zinc-100',
+  outline: 'border border-blue-200 bg-white text-blue-800 hover:bg-blue-50',
+  ghost: 'text-blue-800 hover:bg-blue-50',
 }
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

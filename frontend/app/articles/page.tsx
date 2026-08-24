@@ -18,9 +18,14 @@ export default function ArticlesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Artigos</h1>
-        <Link href="/articles/new" className={buttonClass()}>
-          Novo artigo
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Artigos</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Para criar um artigo, abra o perfil do cliente.
+          </p>
+        </div>
+        <Link href="/clients" className={buttonClass('outline')}>
+          Ir para clientes
         </Link>
       </div>
 

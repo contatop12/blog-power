@@ -1,13 +1,8 @@
-import { DM_Sans, Fraunces } from 'next/font/google'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 
-export const fontDisplay = Fraunces({
+/** Fonte única sans-serif para UI e títulos */
+export const fontSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-})
-
-export const fontBody = DM_Sans({
-  subsets: ['latin'],
-  variable: '--font-body',
+  variable: '--font-sans',
   display: 'swap',
 })

@@ -3,28 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --ink: #0f1729;
-  --paper: #f7f4ef;
+  --ink: #0b1f3a;
+  --paper: #ffffff;
   --paper-elevated: #ffffff;
-  --copper: #c17f3a;
-  --copper-hover: #a86a2e;
-  --mist: #e8e4dc;
-  --text-muted: #5c6478;
-  --danger: #b42318;
-  --success: #1a6b42;
+  --blue: #1d4ed8;
+  --blue-hover: #1e40af;
+  --blue-soft: #eff6ff;
+  --blue-border: #bfdbfe;
+  --mist: #e2e8f0;
+  --text-muted: #475569;
+  --danger: #b91c1c;
+  --success: #047857;
   --radius: 10px;
-  --shadow-soft: 0 8px 32px rgba(15, 23, 41, 0.08);
+  --shadow-soft: 0 8px 28px rgba(11, 31, 58, 0.08);
 }
 
 body {
   @apply antialiased;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-body), system-ui, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 h1, h2, h3, .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 @layer components {
@@ -36,11 +39,11 @@ h1, h2, h3, .font-display {
   }
 
   .btn-primary {
-    @apply inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition-colors;
-    background: var(--copper);
+    @apply inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white transition-colors;
+    background: var(--blue);
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--copper-hover);
+    background: var(--blue-hover);
   }
   .btn-primary:disabled {
     @apply cursor-not-allowed opacity-50;
@@ -48,12 +51,12 @@ h1, h2, h3, .font-display {
 
   .btn-ghost {
     @apply inline-flex h-11 items-center justify-center rounded-lg border px-5 text-sm font-medium transition-colors;
-    border-color: var(--mist);
-    color: var(--ink);
+    border-color: var(--blue-border);
+    color: var(--blue);
     background: var(--paper-elevated);
   }
   .btn-ghost:hover:not(:disabled) {
-    background: var(--paper);
+    background: var(--blue-soft);
   }
 
   .field-label {
@@ -65,22 +68,23 @@ h1, h2, h3, .font-display {
     @apply w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-shadow;
     border-color: var(--mist);
     background: var(--paper-elevated);
+    color: var(--ink);
   }
   .field-input:focus {
-    box-shadow: 0 0 0 3px rgba(193, 127, 58, 0.25);
-    border-color: var(--copper);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.2);
+    border-color: var(--blue);
   }
 
   .badge-ok {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
-    background: #e8f5ee;
+    background: #ecfdf5;
     color: var(--success);
   }
 
   .badge-warn {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
-    background: #fef3e8;
-    color: var(--copper);
+    background: var(--blue-soft);
+    color: var(--blue);
   }
 }
 
