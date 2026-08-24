@@ -27,6 +27,8 @@
     "cf:secrets:push:api": "node scripts/push-worker-secrets.mjs api",
     "cf:secrets:push:pipeline": "node scripts/push-worker-secrets.mjs pipeline",
     "cf:secrets:push:all": "node scripts/push-worker-secrets.mjs all",
+    "cf:secrets:generate": "python scripts/generate-secrets.py",
+    "cf:secrets:generate:push": "python scripts/generate-secrets.py --push",
     "cf:validate": "node scripts/validate-cloudflare-config.mjs",
     "cf:whoami": "node scripts/cf-with-env.mjs npx wrangler whoami"
   },

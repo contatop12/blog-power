@@ -45,6 +45,7 @@ function parseDotenv(filePath) {
 }
 
 function wranglerConfig(worker) {
+  if (worker === 'api') return 'wrangler.jsonc'
   return join('workers', worker, 'wrangler.jsonc')
 }
 
