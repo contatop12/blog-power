@@ -6,6 +6,9 @@ import type {
   ConnectionStatus,
   CreateArticleInput,
   CreateClientInput,
+  DashboardArticleRow,
+  DashboardPayload,
+  DashboardServiceError,
   GeoJson,
   Job,
   JobStatus,
@@ -431,6 +434,137 @@ export async function upsertClientUrls(
     count++
   }
   return count
+}
+
+function temaFromBriefing(briefing: string | null): string {
+  if (!briefing) return 'Sem título'
+  try {
+    const parsed = JSON.parse(briefing) as { tema?: string }
+    return parsed.tema?.trim() || 'Sem título'
+  } catch {
+    return 'Sem título'
+  }
+}
+
+const EM_ANDAMENTO: ArticleStatus[] = ['briefing', 'gerando', 'rascunho', 'em_revisao', 'aprovado']
+
+export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
+  const clients = await listClients(db)
+  const clientMap = new Map(clients.map((c) => [c.id, c]))
+
+  const { results: articleRows } = await db
+    .prepare('SELECT * FROM articles ORDER BY updated_at DESC')
+    .all<ArticleRow>()
+
+  const articles = (articleRows ?? []).map((row) => {
+    const client = clientMap.get(row.client_id)
+    const item: DashboardArticleRow = {
+      id: row.id,
+      client_id: row.client_id,
+      client_nome: client?.nome ?? 'Cliente removido',
+      tema: temaFromBriefing(row.briefing),
+      status: row.status,
+      wp_url: row.wp_url,
+      publicado_em: row.publicado_em,
+      agendado_para: row.agendado_para,
+      erro_msg: row.erro_msg,
+      updated_at: row.updated_at,
+    }
+    return item
+  })
+
+  const publicadosAll = articles.filter((a) => a.status === 'publicado')
+  const artigos_publicados = publicadosAll.slice(0, 50)
+  const errosPublicacaoAll = articles.filter((a) => a.status === 'erro')
+  const erros_publicacao = errosPublicacaoAll.slice(0, 50)
+  const agendados = articles.filter((a) => a.status === 'agendado')
+  const em_andamento = articles.filter((a) => EM_ANDAMENTO.includes(a.status))
+
+  const erros_servicos: DashboardServiceError[] = []
+
+  for (const c of clients) {
+    if (c.status_conexao === 'erro') {
+      erros_servicos.push({
+        id: `conn-${c.id}`,
+        tipo: 'conexao_wp',
+        client_id: c.id,
+        client_nome: c.nome,
+        titulo: `Conexão WordPress — ${c.nome}`,
+        detalhe: 'Último teste de conexão falhou',
+        updated_at: c.updated_at,
+      })
+    }
+  }
+
+  const { results: jobErrors } = await db
+    .prepare(
+      `SELECT j.id, j.article_id, j.tipo, j.erro, j.finished_at, j.created_at, a.client_id, a.briefing
+       FROM jobs j
+       LEFT JOIN articles a ON a.id = j.article_id
+       WHERE j.status = 'erro'
+       ORDER BY COALESCE(j.finished_at, j.created_at) DESC
+       LIMIT 40`,
+    )
+    .all<{
+      id: string
+      article_id: string
+      tipo: JobTipo
+      erro: string | null
+      finished_at: string | null
+      created_at: string
+      client_id: string | null
+      briefing: string | null
+    }>()
+
+  for (const j of jobErrors ?? []) {
+    const client = j.client_id ? clientMap.get(j.client_id) : undefined
+    erros_servicos.push({
+      id: j.id,
+      tipo: 'job',
+      client_id: j.client_id,
+      client_nome: client?.nome ?? null,
+      titulo: `Job ${j.tipo} — ${temaFromBriefing(j.briefing)}`,
+      detalhe: j.erro,
+      updated_at: j.finished_at ?? j.created_at,
+    })
+  }
+
+  const clientes = clients.map((c) => {
+    const own = articles.filter((a) => a.client_id === c.id)
+    return {
+      id: c.id,
+      nome: c.nome,
+      dominio: c.dominio,
+      status_conexao: c.status_conexao,
+      artigos_total: own.length,
+      publicados: own.filter((a) => a.status === 'publicado').length,
+      erros: own.filter((a) => a.status === 'erro').length,
+      agendados: own.filter((a) => a.status === 'agendado').length,
+    }
+  })
+
+  const publicacoes_por_cliente = clients.map((c) => ({
+    client_id: c.id,
+    client_nome: c.nome,
+    dominio: c.dominio,
+    artigos: articles.filter((a) => a.client_id === c.id).slice(0, 30),
+  }))
+
+  return {
+    kpis: {
+      clientes: clients.length,
+      publicados: publicadosAll.length,
+      agendados: agendados.length,
+      em_andamento: em_andamento.length,
+      erros_publicacao: errosPublicacaoAll.length,
+      erros_servicos: erros_servicos.length,
+    },
+    artigos_publicados,
+    erros_publicacao,
+    erros_servicos,
+    clientes,
+    publicacoes_por_cliente,
+  }
 }
 
 export type { PublishArticleInput }

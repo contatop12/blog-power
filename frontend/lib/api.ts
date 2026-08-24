@@ -3,6 +3,7 @@ import type {
   Client,
   ConnectionCheckResult,
   ClientMaterial,
+  DashboardPayload,
   Job,
   LoginResult,
 } from '@publisher-p12/types'
@@ -64,6 +65,9 @@ export const api = {
       const data = (await res.json()) as LoginResult
       return data
     },
+  },
+  dashboard: {
+    get: () => apiFetch<DashboardPayload>('/dashboard'),
   },
   clients: {
     list: () => apiFetch<Client[]>('/clients'),

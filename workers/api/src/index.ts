@@ -7,6 +7,7 @@ import articlesRouter from './routes/articles.js'
 import jobsRouter from './routes/jobs.js'
 import authRouter from './routes/auth.js'
 import settingsRouter from './routes/settings.js'
+import dashboardRouter from './routes/dashboard.js'
 import { authenticateRequest } from './lib/authGuard.js'
 import { parseAllowedOrigins } from '@publisher-p12/execution'
 
@@ -47,6 +48,7 @@ app.get('/health', (c) =>
 )
 
 app.route('/auth', authRouter)
+app.route('/dashboard', dashboardRouter)
 app.route('/settings', settingsRouter)
 app.route('/clients', clientsRouter)
 app.route('/clients', materialsRouter)

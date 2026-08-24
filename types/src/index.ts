@@ -294,3 +294,63 @@ export interface CfD1DatabaseInfo {
   name: string
   created_at: string
 }
+
+export interface DashboardKpis {
+  clientes: number
+  publicados: number
+  agendados: number
+  em_andamento: number
+  erros_publicacao: number
+  erros_servicos: number
+}
+
+export interface DashboardArticleRow {
+  id: string
+  client_id: string
+  client_nome: string
+  tema: string
+  status: ArticleStatus
+  wp_url: string | null
+  publicado_em: string | null
+  agendado_para: string | null
+  erro_msg: string | null
+  updated_at: string
+}
+
+export interface DashboardServiceError {
+  id: string
+  tipo: 'conexao_wp' | 'job'
+  client_id: string | null
+  client_nome: string | null
+  titulo: string
+  detalhe: string | null
+  updated_at: string
+}
+
+export interface DashboardClientRow {
+  id: string
+  nome: string
+  dominio: string
+  status_conexao: ConnectionStatus
+  artigos_total: number
+  publicados: number
+  erros: number
+  agendados: number
+}
+
+export interface DashboardClientPublications {
+  client_id: string
+  client_nome: string
+  dominio: string
+  artigos: DashboardArticleRow[]
+}
+
+export interface DashboardPayload {
+  kpis: DashboardKpis
+  artigos_publicados: DashboardArticleRow[]
+  erros_publicacao: DashboardArticleRow[]
+  erros_servicos: DashboardServiceError[]
+  clientes: DashboardClientRow[]
+  publicacoes_por_cliente: DashboardClientPublications[]
+}
+
