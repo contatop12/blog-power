@@ -43,7 +43,7 @@ app.use('*', async (c, next) => {
 })
 
 app.get('/health', (c) =>
-  c.json({ ok: true, service: 'publisher-api', environment: c.env.ENVIRONMENT }),
+  c.json({ ok: true, service: 'blog-power', environment: c.env.ENVIRONMENT }),
 )
 
 app.route('/auth', authRouter)

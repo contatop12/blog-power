@@ -1,6 +1,6 @@
 # Deploy no Cloudflare (CI + manual)
 
-Este monorepo tem **3 aplicações** Wrangler. O projeto Git `blog-power` no dashboard deve fazer deploy da **API** (`publisher-api`).
+Este monorepo tem **3 aplicações** Wrangler. O projeto Git `blog-power` no dashboard faz deploy da **API** (worker `blog-power`).
 
 ## Projeto Git `blog-power` (API)
 
@@ -9,16 +9,19 @@ Configuração recomendada em **Workers & Pages → blog-power → Configuraçõ
 | Campo | Valor |
 |-------|--------|
 | Diretório raiz | `/` |
-| Comando de build | *(vazio ou `npm run build`)* |
-| Comando de deploy | `npx wrangler deploy` |
+| Comando de build | *(vazio)* |
+| Comando de deploy | `node scripts/ci-deploy.mjs` |
 
-O arquivo `wrangler.jsonc` na **raiz** existe para o CI do Cloudflare (Wrangler 4 não permite `deploy` na raiz de um npm workspace sem config explícito). Ele publica o worker **`publisher-api`**.
+O script `ci-deploy.mjs` executa `wrangler deploy` e aplica `schema.sql` no D1 remoto.
+
+Alternativa (só deploy, sem schema): `npx wrangler deploy`
+
+O `wrangler.jsonc` na raiz **não inclui `database_id`** — o CI do Cloudflare provisiona o D1 `publisher-db` automaticamente (como já faz com R2 e Queues).
 
 Após o primeiro deploy:
 
-1. Atualize `database_id` em `wrangler.jsonc` (raiz) e em `workers/api/wrangler.jsonc`
+1. Configure secrets: `ENCRYPTION_KEY`, `DASHBOARD_USER`, `DASHBOARD_PASS`, etc. (`npm run cf:secrets:push:api`)
 2. Em **Variables**, ajuste `ALLOWED_ORIGINS` para o domínio real do frontend
-3. Configure secrets: `ENCRYPTION_KEY`, `DASHBOARD_USER`, `DASHBOARD_PASS`, etc. (`npm run cf:secrets:push:api`)
 
 ## Pipeline e frontend (projetos separados)
 

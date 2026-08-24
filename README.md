@@ -48,12 +48,10 @@ cp .env.example .env
 
 npm install
 
-# Criar recursos Cloudflare (primeira vez)
+# Criar recursos Cloudflare (primeira vez — opcional, o CI provisiona automaticamente)
 node scripts/cf-with-env.mjs npx wrangler d1 create publisher-db
 node scripts/cf-with-env.mjs npx wrangler r2 bucket create publisher-images
 node scripts/cf-with-env.mjs npx wrangler queues create publisher-article-jobs
-
-# Atualize database_id em workers/api/wrangler.jsonc e workers/pipeline/wrangler.jsonc
 
 # Aplicar schema D1 (local)
 npm run cf:d1:local

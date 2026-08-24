@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "publisher-api",
+  "name": "blog-power",
   "main": "workers/api/src/index.ts",
   "compatibility_date": "2025-03-01",
   "compatibility_flags": ["nodejs_compat_v2"],
@@ -15,8 +15,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "publisher-db",
-      "database_id": "00000000-0000-0000-0000-000000000001"
+      "database_name": "publisher-db"
     }
   ],
   "r2_buckets": [
