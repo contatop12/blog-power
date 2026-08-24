@@ -91,6 +91,8 @@ npm run cf:deploy:api
 npm run cf:deploy:frontend
 ```
 
+**CI Git (Cloudflare):** o projeto `blog-power` usa `npx wrangler deploy` na raiz (`wrangler.jsonc` → API). Pipeline e frontend precisam de projetos Workers separados — ver [docs/cloudflare-deploy.md](docs/cloudflare-deploy.md).
+
 ## WordPress
 
 Instale `mu-plugin/p12-publisher-bridge.php` em cada cliente. Ver [docs/wordpress-onboarding.md](docs/wordpress-onboarding.md).

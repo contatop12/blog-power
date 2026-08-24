@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "publisher-api",
+  "main": "workers/api/src/index.ts",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat_v2"],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "OPENROUTER_MODEL_REDATOR": "anthropic/claude-sonnet-4-5",
+    "OPENROUTER_MODEL_EDITOR": "anthropic/claude-sonnet-4-5",
+    "OPENROUTER_MODEL_IMAGEM": "anthropic/claude-sonnet-4-5",
+    "IMAGE_PROVIDER": "openrouter",
+    "ALLOWED_ORIGINS": "https://publisher.seudominio.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "publisher-db",
+      "database_id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "publisher-images"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "ARTICLE_QUEUE",
+        "queue": "publisher-article-jobs"
+      }
+    ]
+  }
+}

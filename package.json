@@ -21,6 +21,7 @@
     "cf:deploy:api": "node scripts/cf-with-env.mjs npx wrangler deploy --config workers/api/wrangler.jsonc",
     "cf:deploy:frontend": "npm run deploy -w frontend",
     "cf:deploy:workers": "npm run cf:deploy:pipeline && npm run cf:deploy:api",
+    "deploy": "wrangler deploy",
     "cf:d1:local": "node scripts/cf-with-env.mjs npx wrangler d1 execute publisher-db --local --file=schema.sql --config workers/api/wrangler.jsonc",
     "cf:d1:remote": "node scripts/cf-with-env.mjs npx wrangler d1 execute publisher-db --remote --file=schema.sql --config workers/api/wrangler.jsonc",
     "cf:secrets:push:api": "node scripts/push-worker-secrets.mjs api",
