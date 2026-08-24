@@ -16,17 +16,21 @@ Ferramenta de produção e publicação de conteúdo SEO/GEO em WordPress — sc
 - Conta Cloudflare com Workers, D1, R2 e Queues habilitados
 - `CLOUDFLARE_API_TOKEN` no `.env` (copie de `.env.example`)
 
-## Credenciais (UI)
+## Credenciais
 
-Acesse **Credenciais** no menu ou `/settings` para configurar:
+Credenciais **não** são editáveis na UI. Configure apenas via Worker secrets / `.env`:
 
-- **OpenRouter** — API key e modelos por agente
-- **Evolution API** — notificações WhatsApp ao publicar
-- **Cloudflare** — Account ID e token (validação via API)
+- `DASHBOARD_USER` / `DASHBOARD_PASS` — login do dashboard
+- `ENCRYPTION_KEY` — criptografia de senhas WP
+- `OPENROUTER_API_KEY` — agentes LLM
+- `EVOLUTION_*` — notificações WhatsApp (pipeline)
 
-Secrets são criptografados no D1 (`encrypted_settings`). O login em `/login` tem limite de **5 tentativas / 15 min** com bloqueio de 30 min.
+O login em `/login` tem limite de **5 tentativas / 15 min** com bloqueio de 30 min.
 
-Na mesma página, o **Wizard — Setup D1** permite validar o token Cloudflare, listar/criar bancos D1 na conta e aplicar o `schema.sql` no banco vinculado ao Worker.
+```bash
+npm run cf:secrets:push:api
+npm run cf:secrets:push:pipeline
+```
 
 Migration adicional: `migrations/003_auth_and_settings.sql`
 

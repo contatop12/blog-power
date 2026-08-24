@@ -5,11 +5,6 @@ import type {
   ClientMaterial,
   Job,
   LoginResult,
-  SettingsGroupView,
-  SettingKey,
-  D1SetupStatus,
-  D1ApplyResult,
-  CfD1DatabaseInfo,
 } from '@publisher-p12/types'
 import { getAuthHeader } from './auth'
 
@@ -49,7 +44,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, skipAuth = f
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error((err as { error?: string; erro?: string }).error ?? (err as { erro?: string }).erro ?? 'Erro na API')
+    throw new Error(
+      (err as { error?: string; erro?: string }).error ??
+        (err as { erro?: string }).erro ??
+        'Erro na API',
+    )
   }
   return res.json() as Promise<T>
 }
@@ -65,28 +64,6 @@ export const api = {
       const data = (await res.json()) as LoginResult
       return data
     },
-  },
-  settings: {
-    get: () => apiFetch<SettingsGroupView>('/settings'),
-    update: (settings: Partial<Record<SettingKey, string>>) =>
-      apiFetch<SettingsGroupView>('/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ settings }),
-      }),
-    testOpenRouter: () => apiFetch<{ ok: boolean; erro?: string }>('/settings/test/openrouter', { method: 'POST' }),
-    testEvolution: () => apiFetch<{ ok: boolean; erro?: string }>('/settings/test/evolution', { method: 'POST' }),
-    testCloudflare: () =>
-      apiFetch<{ ok: boolean; erro?: string; account_id?: string }>('/settings/test/cloudflare', {
-        method: 'POST',
-      }),
-    d1Status: () => apiFetch<D1SetupStatus>('/settings/d1/status'),
-    applyD1: () => apiFetch<D1ApplyResult>('/settings/d1/apply', { method: 'POST' }),
-    listCfD1: () => apiFetch<{ databases: CfD1DatabaseInfo[] }>('/settings/cloudflare/d1'),
-    createCfD1: (name: string) =>
-      apiFetch<{ ok: boolean; database: CfD1DatabaseInfo; instrucao: string }>(
-        '/settings/cloudflare/d1/create',
-        { method: 'POST', body: JSON.stringify({ name }) },
-      ),
   },
   clients: {
     list: () => apiFetch<Client[]>('/clients'),
@@ -114,10 +91,9 @@ export const api = {
         method: 'DELETE',
       }),
     download: async (clientId: string, materialId: string, filename: string) => {
-      const res = await fetch(
-        `${API_URL}/clients/${clientId}/materials/${materialId}/download`,
-        { headers: { Authorization: getAuthHeader() } },
-      )
+      const res = await fetch(`${API_URL}/clients/${clientId}/materials/${materialId}/download`, {
+        headers: { Authorization: getAuthHeader() },
+      })
       if (!res.ok) throw new Error('Falha ao baixar arquivo')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
