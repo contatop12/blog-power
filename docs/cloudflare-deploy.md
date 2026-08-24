@@ -37,8 +37,12 @@ Crie **mais dois** projetos Workers conectados ao mesmo repositório:
 
 | Campo | Valor |
 |-------|--------|
-| Comando de build | `npm run cf:build` |
+| Comando de build | `npm run cf:build -w frontend` *(preferir build no CI Linux — OpenNext quebra em paths Windows com acento)* |
 | Comando de deploy | `npx wrangler deploy --config frontend/wrangler.jsonc` |
+
+URL atual: `https://publisher-frontend.contato-097.workers.dev`
+
+Deploy local (Windows): copiar o monorepo para um path sem acentos (ex.: `C:\tmp\blog-power`) e rodar `npm run deploy -w frontend`.
 
 ## Deploy manual (local)
 

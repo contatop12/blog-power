@@ -10,7 +10,7 @@
     "OPENROUTER_MODEL_EDITOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_IMAGEM": "anthropic/claude-sonnet-4-5",
     "IMAGE_PROVIDER": "openrouter",
-    "ALLOWED_ORIGINS": "https://publisher.seudominio.com"
+    "ALLOWED_ORIGINS": "https://publisher-frontend.contato-097.workers.dev,http://localhost:3000,http://127.0.0.1:3000"
   },
   "d1_databases": [
     {

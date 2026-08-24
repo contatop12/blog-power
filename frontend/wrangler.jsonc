@@ -8,10 +8,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "observability": {
+    "enabled": true
+  },
   "services": [
     {
-      "binding": "PUBLISHER_API",
-      "service": "blog-power"
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "publisher-frontend"
     }
   ]
 }
