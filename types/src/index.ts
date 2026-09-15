@@ -1,12 +1,15 @@
 // Enums e tipos compartilhados — Publisher P12 (PRD §5)
 
+export type WpPostType = 'post' | 'page'
+
 export type SeoPlugin = 'yoast' | 'rankmath' | 'nenhum'
 
-export type ConnectionStatus = 'ok' | 'erro' | 'nao_testado'
+export type ConnectionStatus = 'ok' | 'atencao' | 'erro' | 'nao_testado'
 
 export type UrlTipo = 'servico' | 'blog' | 'institucional' | 'outro'
 
-export type UrlOrigem = 'sitemap' | 'manual' | 'publicado_aqui'
+/** 'wordpress' = espelhado do corpus de posts publicados (sync da base de conhecimento). */
+export type UrlOrigem = 'sitemap' | 'manual' | 'publicado_aqui' | 'wordpress'
 
 export type ArticleStatus =
   | 'briefing'
@@ -18,7 +21,17 @@ export type ArticleStatus =
   | 'publicado'
   | 'erro'
 
-export type JobTipo = 'redigir' | 'editar' | 'imagem' | 'publicar' | 'validar_links'
+export type JobTipo =
+  | 'redigir'
+  | 'editar'
+  | 'imagem'
+  | 'publicar'
+  | 'validar_links'
+  | 'sincronizar_corpus'
+  | 'sugerir_pautas'
+
+/** Jobs de corpus/pautas rodam no escopo do cliente, sem artigo associado. */
+export const CLIENT_SCOPED_JOBS: JobTipo[] = ['sincronizar_corpus', 'sugerir_pautas']
 
 export type JobStatus = 'pendente' | 'rodando' | 'ok' | 'erro'
 
@@ -44,6 +57,7 @@ export interface Briefing {
   tema: string
   kw_principal: string
   kws_secundarias: string[]
+  /** Nome(s) da(s) categoria(s) WP — usado no contexto editorial. */
   intencao: string
   etapa_funil: string
   angulo: string
@@ -51,6 +65,8 @@ export interface Briefing {
   extensao_alvo: number
   artigos_irmaos: string[]
   observacoes?: string
+  /** IDs de categorias WordPress selecionadas no briefing. */
+  categoria_ids?: number[]
 }
 
 export interface LinkInterno {
@@ -77,6 +93,15 @@ export interface ImagemSeo {
   alt: string
 }
 
+/** Imagem de apoio no meio do artigo, sugerida pelo Editor. */
+export interface ImagemCorpo {
+  /** Texto exato do H2 onde a imagem entra (após o primeiro parágrafo). */
+  secao: string
+  /** Prompt em inglês, descritivo, sem pedir texto dentro da imagem. */
+  prompt: string
+  alt: string
+}
+
 export interface SeoJson {
   titulo_seo: string
   meta_description: string
@@ -91,6 +116,7 @@ export interface SeoJson {
   schema_recomendado: string[]
   og: OgMeta
   imagem: ImagemSeo
+  imagens_corpo?: ImagemCorpo[]
 }
 
 export interface GeoJson {
@@ -147,6 +173,8 @@ export interface Article {
   wp_url: string | null
   agendado_para: string | null
   publicado_em: string | null
+  /** Tipo de conteúdo no WordPress: post (blog) ou page. */
+  wp_post_type: WpPostType
   erro_msg: string | null
   created_at: string
   updated_at: string
@@ -164,7 +192,8 @@ export interface ArticleRevision {
 
 export interface Job {
   id: string
-  article_id: string
+  article_id: string | null
+  client_id: string | null
   tipo: JobTipo
   status: JobStatus
   payload: Record<string, unknown> | null
@@ -176,7 +205,9 @@ export interface Job {
 
 export interface QueueMessage {
   job_id: string
-  article_id: string
+  /** Null em jobs de escopo cliente (sincronizar_corpus, sugerir_pautas). */
+  article_id: string | null
+  client_id?: string | null
   tipo: JobTipo
 }
 
@@ -189,6 +220,8 @@ export interface ConnectionCheckItem {
 export interface ConnectionCheckResult {
   ok: boolean
   itens: ConnectionCheckItem[]
+  /** Status agregado para UI e persistência no cliente. */
+  status_conexao: ConnectionStatus
 }
 
 export interface CreateClientInput {
@@ -207,13 +240,52 @@ export interface CreateClientInput {
 export interface CreateArticleInput {
   client_id: string
   briefing: Briefing
+  /** Texto completo colado pelo usuário; se informado, pula a redação e vai para edição. */
+  conteudo_colado?: string | null
+  /** Padrão: post (artigo de blog). */
+  wp_post_type?: WpPostType
+  /** Data/hora planejada (ISO UTC). Opcional — pode definir na revisão. */
+  agendado_para?: string | null
 }
 
 export interface PublishArticleInput {
   categoria_ids: number[]
   tag_ids: number[]
   autor_id?: number
+  /** ISO 8601 (UTC) ou datetime-local interpretado com timezone do cliente. */
   agendado_para: string
+  /** Padrão: post. Páginas não usam categorias/tags. */
+  wp_post_type?: WpPostType
+}
+
+export interface WpCategoryOption {
+  id: number
+  name: string
+  slug: string
+  parent: number
+  count?: number
+}
+
+export interface CreateWpCategoryInput {
+  name: string
+  parent?: number
+}
+
+export interface UpdateWpCategoryInput {
+  name?: string
+  slug?: string
+  parent?: number
+}
+
+export interface WpTagOption {
+  id: number
+  name: string
+  slug: string
+}
+
+export interface WpAuthorOption {
+  id: number
+  name: string
 }
 
 export type MaterialTipo = 'documento' | 'imagem' | 'referencia'
@@ -354,3 +426,118 @@ export interface DashboardPayload {
   publicacoes_por_cliente: DashboardClientPublications[]
 }
 
+
+// ---------------------------------------------------------------------------
+// Base de conhecimento do cliente (corpus de posts publicados) + pautas
+// ---------------------------------------------------------------------------
+
+export interface WpTermRef {
+  id: number
+  name: string
+}
+
+/** Post/página já publicado no WordPress do cliente, ingerido para a base. */
+export interface ClientPost {
+  id: string
+  client_id: string
+  wp_post_id: number
+  wp_post_type: WpPostType
+  titulo: string
+  slug: string | null
+  url: string
+  excerpt: string | null
+  conteudo_txt: string | null
+  categorias: WpTermRef[]
+  tags: WpTermRef[]
+  palavras: number
+  publicado_em: string | null
+  wp_modified: string | null
+  synced_at: string
+}
+
+/** Linha enxuta para listagem na UI (sem o conteúdo completo). */
+export interface ClientPostSummary {
+  id: string
+  wp_post_id: number
+  wp_post_type: WpPostType
+  titulo: string
+  url: string
+  categorias: WpTermRef[]
+  palavras: number
+  publicado_em: string | null
+  wp_modified: string | null
+}
+
+export interface CorpusStatus {
+  client_id: string
+  total: number
+  posts: number
+  paginas: number
+  palavras_total: number
+  ultimo_sync: string | null
+  ultimo_modified: string | null
+  /** Job de sincronização em andamento, se houver. */
+  job_em_andamento: string | null
+}
+
+export interface SyncCorpusResult {
+  total_lidos: number
+  inseridos: number
+  atualizados: number
+  paginas_lidas: number
+  tipos: WpPostType[]
+}
+
+export interface SyncCorpusInput {
+  /** Ignora wp_modified e reingere tudo. */
+  completo?: boolean
+  /** Padrão: ['post']. */
+  tipos?: WpPostType[]
+}
+
+export type ArticleIdeaStatus = 'nova' | 'descartada' | 'usada'
+
+/** Pauta sugerida pela IA — desenhada para virar Briefing sem tradução. */
+export interface PautaSugerida {
+  tema: string
+  kw_principal: string
+  kws_secundarias: string[]
+  intencao: string
+  etapa_funil: string
+  angulo: string
+  publico: string
+  extensao_alvo: number
+  /** Tema-pai identificado no corpus do cliente. */
+  cluster: string
+  /** Qual lacuna de cobertura a pauta preenche. */
+  justificativa: string
+  /** URLs do corpus que devem virar links internos (semente do sub-projeto B). */
+  artigos_relacionados: string[]
+  risco_canibalizacao: string | null
+}
+
+export interface ArticleIdea {
+  id: string
+  client_id: string
+  tema: string
+  kw_principal: string | null
+  cluster: string | null
+  pauta: PautaSugerida
+  status: ArticleIdeaStatus
+  article_id: string | null
+  created_at: string
+}
+
+export interface SuggestPautasInput {
+  /** Quantidade de pautas pedidas (1–15). Padrão 5. */
+  quantidade?: number
+  /** Recorte opcional: tema, categoria ou etapa de funil. */
+  foco?: string
+}
+
+export interface SuggestPautasResult {
+  pautas: PautaSugerida[]
+  /** Quantos posts do corpus entraram no prompt. */
+  posts_considerados: number
+  corpus_truncado: boolean
+}

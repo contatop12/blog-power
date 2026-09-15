@@ -1,11 +1,21 @@
 import type {
   Article,
+  ArticleIdea,
+  ArticleIdeaStatus,
   Client,
+  ClientPost,
+  ClientPostSummary,
+  CorpusStatus,
   ConnectionCheckResult,
   ClientMaterial,
+  CreateWpCategoryInput,
   DashboardPayload,
   Job,
   LoginResult,
+  UpdateWpCategoryInput,
+  WpAuthorOption,
+  WpCategoryOption,
+  WpTagOption,
 } from '@publisher-p12/types'
 import { getAuthHeader } from './auth'
 
@@ -78,7 +88,27 @@ export const api = {
     testConnection: (id: string) =>
       apiFetch<ConnectionCheckResult>(`/clients/${id}/test-connection`, { method: 'POST' }),
     syncSitemap: (id: string) =>
-      apiFetch<{ count: number; synced: number }>(`/clients/${id}/sync-sitemap`, { method: 'POST' }),
+      apiFetch<{ count: number; synced: number; duration_ms?: number; sitemaps_fetched?: number }>(
+        `/clients/${id}/sync-sitemap`,
+        { method: 'POST' },
+      ),
+    wpCategories: (id: string) => apiFetch<WpCategoryOption[]>(`/clients/${id}/wp/categories`),
+    createWpCategory: (id: string, body: CreateWpCategoryInput) =>
+      apiFetch<WpCategoryOption>(`/clients/${id}/wp/categories`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateWpCategory: (id: string, categoryId: number, body: UpdateWpCategoryInput) =>
+      apiFetch<WpCategoryOption>(`/clients/${id}/wp/categories/${categoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    deleteWpCategory: (id: string, categoryId: number) =>
+      apiFetch<{ ok: boolean }>(`/clients/${id}/wp/categories/${categoryId}`, {
+        method: 'DELETE',
+      }),
+    wpTags: (id: string) => apiFetch<WpTagOption[]>(`/clients/${id}/wp/tags`),
+    wpAuthors: (id: string) => apiFetch<WpAuthorOption[]>(`/clients/${id}/wp/authors`),
   },
   materials: {
     list: (clientId: string) => apiFetch<ClientMaterial[]>(`/clients/${clientId}/materials`),
@@ -126,6 +156,45 @@ export const api = {
       apiFetch<{ job_id: string }>(`/articles/${id}/regenerate-image`, { method: 'POST' }),
     publish: (id: string, body: unknown) =>
       apiFetch<{ job_id: string }>(`/articles/${id}/publish`, { method: 'POST', body: JSON.stringify(body) }),
+  },
+  corpus: {
+    status: (clientId: string) => apiFetch<CorpusStatus>(`/clients/${clientId}/corpus/status`),
+    list: (clientId: string, params?: { limit?: number; offset?: number; busca?: string }) => {
+      const q = new URLSearchParams()
+      if (params?.limit) q.set('limit', String(params.limit))
+      if (params?.offset) q.set('offset', String(params.offset))
+      if (params?.busca) q.set('busca', params.busca)
+      const qs = q.toString()
+      return apiFetch<ClientPostSummary[]>(`/clients/${clientId}/corpus${qs ? `?${qs}` : ''}`)
+    },
+    get: (clientId: string, postId: string) =>
+      apiFetch<ClientPost>(`/clients/${clientId}/corpus/${postId}`),
+    sync: (clientId: string, body?: { completo?: boolean; tipos?: Array<'post' | 'page'> }) =>
+      apiFetch<{ job_id: string; status: string }>(`/clients/${clientId}/corpus/sync`, {
+        method: 'POST',
+        body: JSON.stringify(body ?? {}),
+      }),
+  },
+  pautas: {
+    list: (clientId: string, status?: ArticleIdeaStatus) =>
+      apiFetch<ArticleIdea[]>(
+        `/clients/${clientId}/pautas${status ? `?status=${status}` : ''}`,
+      ),
+    gerar: (clientId: string, body?: { quantidade?: number; foco?: string }) =>
+      apiFetch<{ job_id: string; status: string }>(`/clients/${clientId}/pautas/gerar`, {
+        method: 'POST',
+        body: JSON.stringify(body ?? {}),
+      }),
+    setStatus: (clientId: string, ideaId: string, status: ArticleIdeaStatus) =>
+      apiFetch<{ ok: boolean }>(`/clients/${clientId}/pautas/${ideaId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    criarArtigo: (clientId: string, ideaId: string) =>
+      apiFetch<Article>(`/clients/${clientId}/pautas/${ideaId}/artigo`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
   },
   jobs: {
     get: (id: string) => apiFetch<Job>(`/jobs/${id}`),

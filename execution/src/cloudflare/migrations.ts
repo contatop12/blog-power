@@ -21,7 +21,8 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     status TEXT NOT NULL DEFAULT 'briefing', briefing TEXT, conteudo_md TEXT,
     conteudo_html TEXT, seo TEXT, geo TEXT, schema_jsonld TEXT,
     imagem_url TEXT, imagem_alt TEXT, wp_post_id INTEGER, wp_url TEXT,
-    agendado_para TEXT, publicado_em TEXT, erro_msg TEXT,
+    agendado_para TEXT, publicado_em TEXT, wp_post_type TEXT NOT NULL DEFAULT 'post',
+    erro_msg TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE INDEX IF NOT EXISTS idx_articles_client_status ON articles(client_id, status)`,
@@ -31,7 +32,8 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     diff_resumo TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE INDEX IF NOT EXISTS idx_revisions_article ON article_revisions(article_id)`,
   `CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY, article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY, article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    client_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
     tipo TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pendente', payload TEXT,
     tentativas INTEGER NOT NULL DEFAULT 0, erro TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`,
@@ -44,7 +46,7 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     ('openrouter_model_redator', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_editor', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_imagem', 'anthropic/claude-sonnet-4-5'),
-    ('image_provider', 'openrouter')`,
+    ('image_provider', 'workers_ai')`,
   `CREATE TABLE IF NOT EXISTS client_materials (
     id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     nome TEXT NOT NULL, nome_original TEXT NOT NULL, mime_type TEXT NOT NULL,
@@ -58,6 +60,77 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS encrypted_settings (
     key TEXT PRIMARY KEY, value_enc TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS client_posts (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    wp_post_id INTEGER NOT NULL, wp_post_type TEXT NOT NULL DEFAULT 'post',
+    titulo TEXT NOT NULL, slug TEXT, url TEXT NOT NULL, excerpt TEXT,
+    conteudo_txt TEXT, categorias TEXT, tags TEXT,
+    palavras INTEGER NOT NULL DEFAULT 0, publicado_em TEXT, wp_modified TEXT,
+    synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(client_id, wp_post_type, wp_post_id))`,
+  `CREATE INDEX IF NOT EXISTS idx_client_posts_client ON client_posts(client_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_client_posts_modified ON client_posts(client_id, wp_modified)`,
+  `CREATE TABLE IF NOT EXISTS article_ideas (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    tema TEXT NOT NULL, kw_principal TEXT, cluster TEXT, payload TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'nova',
+    article_id TEXT REFERENCES articles(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE INDEX IF NOT EXISTS idx_article_ideas_client ON article_ideas(client_id, status)`,
+]
+
+/** Migration 007 (backfill): posts do corpus entram no inventário de links. Idempotente. */
+export const CLIENT_URLS_BACKFILL_STATEMENT = `INSERT INTO client_urls (id, client_id, url, titulo, slug, resumo, tipo, origem)
+  SELECT lower(hex(randomblob(16))), client_id, url, titulo, slug,
+         NULLIF(substr(COALESCE(excerpt, ''), 1, 300), ''),
+         CASE WHEN wp_post_type = 'page' THEN 'institucional' ELSE 'blog' END,
+         'wordpress'
+  FROM client_posts WHERE true
+  ON CONFLICT(client_id, url) DO UPDATE SET
+    titulo = COALESCE(client_urls.titulo, excluded.titulo),
+    resumo = COALESCE(client_urls.resumo, excluded.resumo),
+    tipo = CASE WHEN client_urls.tipo = 'outro' THEN excluded.tipo ELSE client_urls.tipo END`
+
+/**
+ * Migration 007: bancos criados pelo schema.sql têm CHECK em client_urls.origem
+ * sem 'wordpress'. Reconstrói a tabela só nesse caso (ver needsClientUrlsUpgrade).
+ */
+export const CLIENT_URLS_UPGRADE_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS client_urls_upgrade (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    url TEXT NOT NULL, titulo TEXT, slug TEXT, resumo TEXT,
+    tipo TEXT NOT NULL DEFAULT 'outro', kw_inferida TEXT,
+    origem TEXT NOT NULL DEFAULT 'sitemap', http_status INTEGER, last_checked TEXT,
+    UNIQUE(client_id, url))`,
+  `INSERT INTO client_urls_upgrade (id, client_id, url, titulo, slug, resumo, tipo, kw_inferida, origem, http_status, last_checked)
+    SELECT id, client_id, url, titulo, slug, resumo, tipo, kw_inferida, origem, http_status, last_checked
+    FROM client_urls`,
+  `DROP TABLE client_urls`,
+  `ALTER TABLE client_urls_upgrade RENAME TO client_urls`,
+  `CREATE INDEX IF NOT EXISTS idx_client_urls_client ON client_urls(client_id)`,
+]
+
+/**
+ * Migration 006: `jobs` ganha `client_id` e aceita jobs sem artigo.
+ * CREATE TABLE IF NOT EXISTS não altera bancos existentes, então a tabela é
+ * reconstruída — só quando a coluna ainda não existe (ver needsJobsUpgrade).
+ */
+export const JOBS_UPGRADE_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS jobs_upgrade (
+    id TEXT PRIMARY KEY,
+    article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    client_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pendente', payload TEXT,
+    tentativas INTEGER NOT NULL DEFAULT 0, erro TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`,
+  `INSERT INTO jobs_upgrade (id, article_id, client_id, tipo, status, payload, tentativas, erro, created_at, finished_at)
+    SELECT j.id, j.article_id, a.client_id, j.tipo, j.status, j.payload, j.tentativas, j.erro, j.created_at, j.finished_at
+    FROM jobs j LEFT JOIN articles a ON a.id = j.article_id`,
+  `DROP TABLE jobs`,
+  `ALTER TABLE jobs_upgrade RENAME TO jobs`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
 ]
 
 export const REQUIRED_TABLES = [
@@ -67,4 +140,6 @@ export const REQUIRED_TABLES = [
   'app_settings',
   'encrypted_settings',
   'auth_attempts',
+  'client_posts',
+  'article_ideas',
 ] as const

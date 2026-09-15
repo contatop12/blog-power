@@ -22,3 +22,10 @@ Validar cada link interno proposto com requisição HTTP. Status ≠ 200 → rem
 
 ## Critérios de validação
 - 100% dos links publicados com HTTP 200 (critério MVP §13)
+
+## Aprendizados
+- Após remover links inválidos do markdown, o `conteudo_html` precisa ser regerado — é o HTML
+  que vai ao WordPress. Antes da correção, o link 404 continuava publicado.
+- Edição humana na revisão (`PATCH /articles/:id` com `conteudo_md`) também regera o HTML.
+- Links internos só passam pela validação HTTP depois da trava `enforceInternalLinks`
+  (ver `directives/editor_seo_geo.md`).

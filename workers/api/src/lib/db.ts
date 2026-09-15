@@ -17,6 +17,7 @@ import type {
   PublishArticleInput,
   SeoJson,
   SeoPlugin,
+  WpPostType,
 } from '@publisher-p12/types'
 import { encryptSecret } from '@publisher-p12/execution'
 import type { ApiBindings } from '../bindings.js'
@@ -62,6 +63,7 @@ interface ArticleRow {
   wp_url: string | null
   agendado_para: string | null
   publicado_em: string | null
+  wp_post_type: string
   erro_msg: string | null
   created_at: string
   updated_at: string
@@ -69,7 +71,8 @@ interface ArticleRow {
 
 interface JobRow {
   id: string
-  article_id: string
+  article_id: string | null
+  client_id: string | null
   tipo: JobTipo
   status: JobStatus
   payload: string | null
@@ -124,6 +127,7 @@ function rowToArticle(row: ArticleRow): Article {
     wp_url: row.wp_url,
     agendado_para: row.agendado_para,
     publicado_em: row.publicado_em,
+    wp_post_type: row.wp_post_type === 'page' ? 'page' : 'post',
     erro_msg: row.erro_msg,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -134,6 +138,7 @@ function rowToJob(row: JobRow): Job {
   return {
     id: row.id,
     article_id: row.article_id,
+    client_id: row.client_id ?? null,
     tipo: row.tipo,
     status: row.status,
     payload: parseJson<Record<string, unknown>>(row.payload),
@@ -303,12 +308,25 @@ export async function createArticle(
 ): Promise<Article> {
   const id = uuid()
   const ts = now()
+  const wpPostType = input.wp_post_type ?? 'post'
+  const conteudoMdInicial = input.conteudo_colado?.trim() || null
   await db
     .prepare(
-      `INSERT INTO articles (id, client_id, status, briefing, created_at, updated_at)
-       VALUES (?, ?, 'briefing', ?, ?, ?)`,
+      `INSERT INTO articles (
+        id, client_id, status, briefing, conteudo_md, wp_post_type, agendado_para, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, input.client_id, JSON.stringify(input.briefing), ts, ts)
+    .bind(
+      id,
+      input.client_id,
+      conteudoMdInicial ? 'rascunho' : 'briefing',
+      JSON.stringify(input.briefing),
+      conteudoMdInicial,
+      wpPostType,
+      input.agendado_para ?? null,
+      ts,
+      ts,
+    )
     .run()
 
   const article = await getArticle(db, id)
@@ -333,6 +351,7 @@ export async function updateArticle(
     wp_url: string
     agendado_para: string
     publicado_em: string
+    wp_post_type: WpPostType
     erro_msg: string | null
   }>,
 ): Promise<Article | null> {
@@ -353,6 +372,7 @@ export async function updateArticle(
     ['wp_url', 'wp_url', (v) => v],
     ['agendado_para', 'agendado_para', (v) => v],
     ['publicado_em', 'publicado_em', (v) => v],
+    ['wp_post_type', 'wp_post_type', (v) => v],
     ['erro_msg', 'erro_msg', (v) => v],
   ]
 
@@ -384,12 +404,45 @@ export async function createJob(
 ): Promise<Job> {
   const id = uuid()
   const ts = now()
+  const clientRow = await db
+    .prepare('SELECT client_id FROM articles WHERE id = ?')
+    .bind(articleId)
+    .first<{ client_id: string }>()
+
   await db
     .prepare(
-      `INSERT INTO jobs (id, article_id, tipo, status, payload, created_at)
-       VALUES (?, ?, ?, 'pendente', ?, ?)`,
+      `INSERT INTO jobs (id, article_id, client_id, tipo, status, payload, created_at)
+       VALUES (?, ?, ?, ?, 'pendente', ?, ?)`,
     )
-    .bind(id, articleId, tipo, payload ? JSON.stringify(payload) : null, ts)
+    .bind(
+      id,
+      articleId,
+      clientRow?.client_id ?? null,
+      tipo,
+      payload ? JSON.stringify(payload) : null,
+      ts,
+    )
+    .run()
+
+  const job = await getJob(db, id)
+  if (!job) throw new Error('Falha ao criar job')
+  return job
+}
+
+/** Job de escopo cliente (corpus, pautas) — sem artigo associado. */
+export async function createClientJob(
+  db: D1Database,
+  clientId: string,
+  tipo: JobTipo,
+  payload?: Record<string, unknown>,
+): Promise<Job> {
+  const id = uuid()
+  await db
+    .prepare(
+      `INSERT INTO jobs (id, article_id, client_id, tipo, status, payload, created_at)
+       VALUES (?, NULL, ?, ?, 'pendente', ?, ?)`,
+    )
+    .bind(id, clientId, tipo, payload ? JSON.stringify(payload) : null, now())
     .run()
 
   const job = await getJob(db, id)
@@ -409,8 +462,46 @@ export async function enqueueJob(
   payload?: Record<string, unknown>,
 ): Promise<Job> {
   const job = await createJob(env.DB, articleId, tipo, payload)
-  await env.ARTICLE_QUEUE.send({ job_id: job.id, article_id: articleId, tipo })
+  await env.ARTICLE_QUEUE.send({
+    job_id: job.id,
+    article_id: articleId,
+    client_id: job.client_id,
+    tipo,
+  })
   return job
+}
+
+export async function enqueueClientJob(
+  env: ApiBindings,
+  clientId: string,
+  tipo: JobTipo,
+  payload?: Record<string, unknown>,
+): Promise<Job> {
+  const job = await createClientJob(env.DB, clientId, tipo, payload)
+  await env.ARTICLE_QUEUE.send({
+    job_id: job.id,
+    article_id: null,
+    client_id: clientId,
+    tipo,
+  })
+  return job
+}
+
+/** Job de escopo cliente ainda na fila ou rodando, se houver. */
+export async function getJobAtivoDoCliente(
+  db: D1Database,
+  clientId: string,
+  tipo: JobTipo,
+): Promise<Job | null> {
+  const row = await db
+    .prepare(
+      `SELECT * FROM jobs
+       WHERE client_id = ? AND tipo = ? AND status IN ('pendente', 'rodando')
+       ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(clientId, tipo)
+    .first<JobRow>()
+  return row ? rowToJob(row) : null
 }
 
 export async function upsertClientUrls(
@@ -418,21 +509,28 @@ export async function upsertClientUrls(
   clientId: string,
   urls: Array<{ url: string; titulo?: string; slug?: string }>,
 ): Promise<number> {
+  if (urls.length === 0) return 0
+
+  const CHUNK = 80
   let count = 0
-  for (const u of urls) {
-    const id = uuid()
-    await db
-      .prepare(
-        `INSERT INTO client_urls (id, client_id, url, titulo, slug, origem)
-         VALUES (?, ?, ?, ?, ?, 'sitemap')
-         ON CONFLICT(client_id, url) DO UPDATE SET
-           titulo = COALESCE(excluded.titulo, titulo),
-           slug = COALESCE(excluded.slug, slug)`,
-      )
-      .bind(id, clientId, u.url, u.titulo ?? null, u.slug ?? null)
-      .run()
-    count++
+
+  for (let i = 0; i < urls.length; i += CHUNK) {
+    const slice = urls.slice(i, i + CHUNK)
+    const statements = slice.map((u) =>
+      db
+        .prepare(
+          `INSERT INTO client_urls (id, client_id, url, titulo, slug, origem)
+           VALUES (?, ?, ?, ?, ?, 'sitemap')
+           ON CONFLICT(client_id, url) DO UPDATE SET
+             titulo = COALESCE(excluded.titulo, titulo),
+             slug = COALESCE(excluded.slug, slug)`,
+        )
+        .bind(uuid(), clientId, u.url, u.titulo ?? null, u.slug ?? null),
+    )
+    await db.batch(statements)
+    count += slice.length
   }
+
   return count
 }
 

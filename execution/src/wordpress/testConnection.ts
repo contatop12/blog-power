@@ -1,10 +1,75 @@
-import type { ConnectionCheckResult } from '@publisher-p12/types'
+import type { ConnectionCheckResult, ConnectionStatus } from '@publisher-p12/types'
 import { normalizeWpApiUrl, wpFetch, type WordPressCredentials } from './client.js'
 
 interface WpUserMe {
   id: number
   name: string
   capabilities?: Record<string, boolean>
+}
+
+interface WpTypeSchema {
+  schema?: {
+    properties?: {
+      meta?: {
+        properties?: Record<string, unknown>
+      }
+    }
+  }
+}
+
+const CRITICAL_CHECKS = new Set(['HTTPS', 'Autenticação', 'Capability edit_posts'])
+const WARNING_CHECKS = new Set(['Plugin SEO detectado', 'mu-plugin P12 Bridge'])
+
+export function deriveConnectionStatus(result: Pick<ConnectionCheckResult, 'ok' | 'itens'>): ConnectionStatus {
+  const failed = result.itens.filter((item) => !item.ok)
+  const criticalFailed = failed.some((item) => CRITICAL_CHECKS.has(item.nome))
+  if (criticalFailed) return 'erro'
+
+  const warningFailed = failed.some((item) => WARNING_CHECKS.has(item.nome))
+  if (warningFailed || !result.ok) return 'atencao'
+
+  return 'ok'
+}
+
+async function userCanEditPosts(creds: WordPressCredentials): Promise<boolean> {
+  try {
+    const me = await wpFetch<WpUserMe>(creds, '/wp/v2/users/me?context=edit')
+    if (me.capabilities?.edit_posts === true) return true
+  } catch {
+    // segue para probe
+  }
+
+  try {
+    const post = await wpFetch<{ id: number }>(creds, '/wp/v2/posts', {
+      method: 'POST',
+      body: {
+        title: 'P12 — teste de conexão (pode excluir)',
+        status: 'draft',
+        content: '<!-- p12 connection probe -->',
+      },
+    })
+    try {
+      await wpFetch(creds, `/wp/v2/posts/${post.id}?force=true`, { method: 'DELETE' })
+    } catch {
+      // criou rascunho — capability confirmada mesmo se a exclusão falhar
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function muPluginInstalled(creds: WordPressCredentials): Promise<boolean> {
+  for (const type of ['post', 'page'] as const) {
+    try {
+      const wpType = await wpFetch<WpTypeSchema>(creds, `/wp/v2/types/${type}?context=edit`)
+      const meta = wpType.schema?.properties?.meta?.properties
+      if (meta?.p12_schema_jsonld) return true
+    } catch {
+      // tenta próximo tipo
+    }
+  }
+  return false
 }
 
 export async function testWordPressConnection(
@@ -25,12 +90,14 @@ export async function testWordPressConnection(
   let muPluginOk = false
 
   try {
-    const me = await wpFetch<WpUserMe>(creds, '/wp/v2/users/me')
+    await wpFetch<WpUserMe>(creds, '/wp/v2/users/me')
     authOk = true
-    hasEditPosts = Boolean(me.capabilities?.edit_posts)
-    void me.name
   } catch {
     authOk = false
+  }
+
+  if (authOk) {
+    hasEditPosts = await userCanEditPosts(creds)
   }
 
   itens.push({
@@ -65,15 +132,8 @@ export async function testWordPressConnection(
       : 'Instale Yoast ou Rank Math, ou configure seo_plugin como nenhum.',
   })
 
-  try {
-    const schema = await wpFetch<{ schema?: { properties?: Record<string, unknown> } }>(
-      creds,
-      '/wp/v2/posts?per_page=1',
-    )
-    void schema
-    muPluginOk = true
-  } catch {
-    muPluginOk = false
+  if (authOk && hasEditPosts) {
+    muPluginOk = await muPluginInstalled(creds)
   }
 
   itens.push({
@@ -81,7 +141,7 @@ export async function testWordPressConnection(
     ok: muPluginOk,
     instrucao: muPluginOk
       ? undefined
-      : 'Instale mu-plugin/p12-publisher-bridge.php no WordPress do cliente.',
+      : 'Instale o P12 Bridge: use “Instalar no WordPress” (ZIP → Plugins → Enviar → Ativar) ou envie o PHP para mu-plugins/.',
   })
 
   itens.push({
@@ -97,8 +157,11 @@ export async function testWordPressConnection(
   })
 
   const criticalOk = httpsOk && authOk && hasEditPosts
-  return {
-    ok: criticalOk && muPluginOk,
+  const result = {
+    ok: criticalOk && muPluginOk && seoPluginDetected,
     itens,
+    status_conexao: 'nao_testado' as ConnectionStatus,
   }
+  result.status_conexao = deriveConnectionStatus(result)
+  return result
 }

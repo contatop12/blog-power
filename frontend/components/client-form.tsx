@@ -4,11 +4,14 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { FieldLabel } from '@/components/field-hint'
+import { WpApiUrlGuide, WpAppPasswordGuide } from '@/components/client-form-guides'
+import { WpDefaultsFields } from '@/components/wp-defaults-fields'
 import { SEO_PLUGINS, emptyClientForm } from '@/lib/client-form'
 import type { Client, CreateClientInput } from '@publisher-p12/types'
 
 interface ClientFormProps {
   initial?: Client
+  clientId?: string
   onSubmit: (data: CreateClientInput & { wp_app_password?: string }) => Promise<void>
   submitLabel: string
 }
@@ -19,17 +22,13 @@ const HINTS = {
     'URL completa do site, com https://. Ex.: https://abxtelecom.com.br — usada para links internos e validação.',
   timezone:
     'Fuso do cliente para agendar posts no horário local. Padrão Brasil: America/Sao_Paulo. Lista IANA (ex.: America/Manaus).',
-  wp_api_url:
-    'Endpoint REST do WordPress. Em geral é o domínio + /wp-json. Ex.: https://site.com.br/wp-json — sem barra no final.',
   wp_user:
     'Usuário WordPress com permissão de Editor ou Administrador. Deve ser o mesmo usado para gerar a Application Password.',
-  wp_app_password:
-    'Senha de aplicativo do WordPress (não a senha de login). Em WP: Usuários → Perfil → Application Passwords. Cole o código gerado (pode ter espaços).',
   seo_plugin:
     'Plugin SEO ativo no site do cliente. Define como título e meta description são enviados. Escolha Yoast, Rank Math ou Nenhum.',
 } as const
 
-export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) {
+export function ClientForm({ initial, clientId, onSubmit, submitLabel }: ClientFormProps) {
   const [form, setForm] = useState(() => {
     if (!initial) return emptyClientForm()
     return {
@@ -74,8 +73,9 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
       <Card>
         <CardTitle>Dados do cliente</CardTitle>
         <p className="mt-1 text-sm text-slate-500">
-          Passe o mouse no ícone <strong className="text-blue-700">!</strong> de cada campo para ver
-          a orientação.
+          Ícone azul <strong className="text-blue-700">!</strong> — passe o mouse para dicas rápidas.
+          Ícone verde <strong className="text-emerald-700">! + mouse</strong> — clique para abrir o
+          guia completo.
         </p>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <FieldLabel label="Nome" hint={HINTS.nome} className="block text-sm sm:col-span-2">
@@ -109,7 +109,7 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
 
           <FieldLabel
             label="URL da API WordPress"
-            hint={HINTS.wp_api_url}
+            guide={{ title: 'URL da API WordPress — guia completo', content: <WpApiUrlGuide /> }}
             className="block text-sm sm:col-span-2"
           >
             <input
@@ -131,7 +131,13 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
             />
           </FieldLabel>
 
-          <FieldLabel label="Application Password" hint={HINTS.wp_app_password}>
+          <FieldLabel
+            label="Application Password"
+            guide={{
+              title: 'Application Password — como gerar no WordPress',
+              content: <WpAppPasswordGuide />,
+            }}
+          >
             <input
               className={inputClass}
               type="password"
@@ -159,11 +165,21 @@ export function ClientForm({ initial, onSubmit, submitLabel }: ClientFormProps) 
             </select>
           </FieldLabel>
         </div>
+
+        {clientId && initial && (
+          <WpDefaultsFields
+            clientId={clientId}
+            categoriaPadraoId={form.categoria_padrao_id ?? null}
+            autorPadraoId={form.autor_padrao_id ?? null}
+            onCategoriaChange={(id) => setForm({ ...form, categoria_padrao_id: id })}
+            onAutorChange={(id) => setForm({ ...form, autor_padrao_id: id })}
+          />
+        )}
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" disabled={saving}>
-        {saving ? 'Salvando...' : submitLabel}
+      {error && <p className="animate-fade-in text-sm text-red-600">{error}</p>}
+      <Button type="submit" loading={saving} loadingText="Salvando...">
+        {submitLabel}
       </Button>
     </form>
   )

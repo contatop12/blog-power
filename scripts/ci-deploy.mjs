@@ -10,5 +10,7 @@ function run(args) {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
-run(['wrangler', 'deploy'])
+// Schema antes do deploy: se o D1 remoto não tiver as migrations exigidas pelo código
+// novo (ex.: jobs.client_id da 006), o schema falha e o worker em produção não é trocado.
 run(['wrangler', 'd1', 'execute', 'DB', '--remote', '--file=schema.sql'])
+run(['wrangler', 'deploy'])

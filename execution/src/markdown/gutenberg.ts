@@ -16,8 +16,20 @@ function wrapBlock(blockName: string, attrs: Record<string, unknown> | null, inn
   return `<!-- wp:${blockName}${attrJson} -->\n${innerHtml}\n<!-- /wp:${blockName} -->`
 }
 
+/** Só http(s) e caminhos relativos viram âncora — bloqueia javascript:, data: etc. */
+function safeHref(url: string): string | null {
+  if (/^https?:\/\//i.test(url)) return url
+  if (url.startsWith('/') && !url.startsWith('//')) return url
+  return null
+}
+
 function parseInline(text: string): string {
+  // Texto já escapado: a URL chega com &amp;/&quot; e pode ir direto para o atributo
   return escapeHtml(text)
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (original, label: string, url: string) => {
+      const href = safeHref(url)
+      return href ? `<a href="${href}">${label}</a>` : original
+    })
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
@@ -50,7 +62,47 @@ function separatorBlock(): string {
   return wrapBlock('separator', null, '<hr class="wp-block-separator has-alpha-channel-opacity"/>')
 }
 
-export function markdownToGutenberg(markdown: string): string {
+export interface ResolvedImage {
+  id?: number
+  url: string
+}
+
+export interface MarkdownToGutenbergOptions {
+  /** Traduz `r2://...` (imagem gerada) para a mídia já enviada ao WordPress. */
+  resolveImage?: (src: string) => ResolvedImage | null
+}
+
+const IMAGE_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/
+
+function imageBlock(
+  alt: string,
+  src: string,
+  resolveImage: MarkdownToGutenbergOptions['resolveImage'],
+): string | null {
+  const resolvida = resolveImage?.(src) ?? null
+  // Imagem gerada que ainda não virou mídia no WP: não publica <img> quebrado
+  if (!resolvida && src.startsWith('r2://')) return null
+
+  const url = resolvida?.url ?? safeHref(src)
+  if (!url) return null
+
+  const id = resolvida?.id
+  const attrs = id
+    ? { id, sizeSlug: 'large', linkDestination: 'none' }
+    : { sizeSlug: 'large', linkDestination: 'none' }
+  const classe = id ? ` class="wp-image-${id}"` : ''
+
+  return wrapBlock(
+    'image',
+    attrs,
+    `<figure class="wp-block-image size-large"><img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}"${classe}/></figure>`,
+  )
+}
+
+export function markdownToGutenberg(
+  markdown: string,
+  options: MarkdownToGutenbergOptions = {},
+): string {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n')
   const blocks: string[] = []
   let i = 0
@@ -60,6 +112,14 @@ export function markdownToGutenberg(markdown: string): string {
     const trimmed = line.trim()
 
     if (!trimmed) {
+      i++
+      continue
+    }
+
+    const imageMatch = IMAGE_LINE.exec(trimmed)
+    if (imageMatch) {
+      const block = imageBlock(imageMatch[1], imageMatch[2], options.resolveImage)
+      if (block) blocks.push(block)
       i++
       continue
     }
@@ -112,7 +172,7 @@ export function markdownToGutenberg(markdown: string): string {
 
     const paraLines: string[] = [trimmed]
     i++
-    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|[-*]\s|\d+\.\s|>|---|\*\*\*)/.test(lines[i].trim())) {
+    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|[-*]\s|\d+\.\s|>|---|\*\*\*|!\[)/.test(lines[i].trim())) {
       paraLines.push(lines[i].trim())
       i++
     }

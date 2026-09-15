@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { setStoredAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 
@@ -85,9 +86,9 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button type="submit" className="btn-primary w-full" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
+          <Button type="submit" className="w-full" loading={loading} loadingText="Entrando...">
+            Entrar
+          </Button>
         </form>
       </div>
     </div>

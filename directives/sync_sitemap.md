@@ -16,9 +16,11 @@ Crawl do `sitemap.xml` do cliente e popular `client_urls` com URLs reais.
 - Contagem de URLs sincronizadas
 
 ## Edge cases
-- Sitemap index com múltiplos sub-sitemaps: seguir recursivamente
-- URL duplicada: upsert por UNIQUE(client_id, url)
+- Sitemap index com múltiplos sub-sitemaps: baixar em paralelo (até 6)
+- Pular sitemaps de imagem/vídeo/news/attachment/author/tag (não servem a links internos)
+- URL duplicada: upsert por UNIQUE(client_id, url) em batch D1 (chunks de 80)
 - Timeout em URL lenta: registrar http_status null, retry manual
+- Tentar `sitemap.xml`, `sitemap_index.xml` e `wp-sitemap.xml`
 
 ## Critérios de validação
 - Pelo menos 1 URL inserida (sites com sitemap válido)

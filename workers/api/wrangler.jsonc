@@ -9,7 +9,8 @@
     "OPENROUTER_MODEL_REDATOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_EDITOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_IMAGEM": "anthropic/claude-sonnet-4-5",
-    "IMAGE_PROVIDER": "openrouter",
+    "OPENROUTER_MODEL_PAUTEIRO": "anthropic/claude-sonnet-4-5",
+    "IMAGE_PROVIDER": "workers_ai",
     "ALLOWED_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000"
   },
   "d1_databases": [

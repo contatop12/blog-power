@@ -33,3 +33,25 @@ Revisar artigo (padrão gerador-crítico) e produzir camada estruturada: `seo.js
 ## Critérios de validação
 - Checklist PRD §7.2 (itens 14–48)
 - Após edição: rodar `execution/links/validate.ts`
+
+## Links internos semânticos (base de conhecimento)
+Antes do Editor, o pipeline monta `links_candidatos` de forma determinística:
+1. `execution/src/links/related.ts` → `rankRelatedPosts` lê **todos** os títulos, categorias,
+   tags e resumos de `client_posts` e pontua contra o briefing (KW principal ×3, secundárias ×2,
+   tema ×1,5; bônus de frase exata; +6 para URLs de `briefing.artigos_irmaos` vindas da pauta)
+2. `getCorpusConteudos` lê o conteúdo completo **só** dos 8 mais próximos
+3. `extractTrecho` extrai até 600 chars dos parágrafos que citam os mesmos termos
+
+O Editor recebe `links_candidatos` (url, título, trecho) e insere 3–6 links contextuais.
+
+### Trava pós-Editor (obrigatória)
+`execution/src/links/enforce.ts` → `enforceInternalLinks` roda antes de salvar e remove:
+link fora de `client_urls`, autolink, URL repetida, link dentro de título, excesso (máx. 8).
+A âncora vira texto. `seo.links_internos` é reconciliado com o que ficou no corpo.
+Resultado em `jobs.payload.resultado.links_removidos` para diagnóstico.
+
+### Aprendizados
+- `markdownToGutenberg` não convertia `[âncora](url)` — links saíam como texto cru no WordPress.
+  Corrigido; só `http(s)` e caminhos relativos viram `<a>`.
+- Inventário acima de 150 URLs: o Editor recebe serviços/institucionais + 40 mais relevantes,
+  mas a trava valida contra o inventário completo.

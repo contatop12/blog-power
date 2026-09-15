@@ -1,5 +1,11 @@
 import type { D1Database } from '../types/d1.js'
-import { D1_BOOTSTRAP_STATEMENTS, REQUIRED_TABLES } from './migrations.js'
+import {
+  CLIENT_URLS_BACKFILL_STATEMENT,
+  CLIENT_URLS_UPGRADE_STATEMENTS,
+  D1_BOOTSTRAP_STATEMENTS,
+  JOBS_UPGRADE_STATEMENTS,
+  REQUIRED_TABLES,
+} from './migrations.js'
 
 export interface D1SetupStatus {
   ready: boolean
@@ -26,13 +32,63 @@ export async function getD1SetupStatus(db: D1Database): Promise<D1SetupStatus> {
   }
 }
 
+/** True quando o banco ainda tem o `jobs` anterior à migration 006. */
+export async function needsJobsUpgrade(db: D1Database): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'`)
+    .first<{ sql: string | null }>()
+
+  if (!row?.sql) return false
+  return !/client_id/.test(row.sql)
+}
+
+/** True quando client_urls ainda tem CHECK de origem sem 'wordpress' (migration 007). */
+export async function needsClientUrlsUpgrade(db: D1Database): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='client_urls'`)
+    .first<{ sql: string | null }>()
+
+  if (!row?.sql) return false
+  return /CHECK\s*\(\s*origem/i.test(row.sql) && !row.sql.includes("'wordpress'")
+}
+
+/** Reconstruções de tabela das migrations 006/007 + backfill do inventário. Idempotente. */
+export async function applyD1Upgrades(db: D1Database): Promise<{ applied: number }> {
+  let applied = 0
+
+  if (await needsJobsUpgrade(db)) {
+    for (const sql of JOBS_UPGRADE_STATEMENTS) {
+      await db.prepare(sql).run()
+      applied++
+    }
+  }
+
+  // Só depois do upgrade: em banco antigo, jobs ainda não tem client_id
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id)').run()
+  applied++
+
+  if (await needsClientUrlsUpgrade(db)) {
+    for (const sql of CLIENT_URLS_UPGRADE_STATEMENTS) {
+      await db.prepare(sql).run()
+      applied++
+    }
+  }
+
+  await db.prepare(CLIENT_URLS_BACKFILL_STATEMENT).run()
+  applied++
+
+  return { applied }
+}
+
 export async function applyD1Bootstrap(db: D1Database): Promise<{ applied: number }> {
   let applied = 0
   for (const sql of D1_BOOTSTRAP_STATEMENTS) {
     await db.prepare(sql).run()
     applied++
   }
-  return { applied }
+
+  const upgrades = await applyD1Upgrades(db)
+  return { applied: applied + upgrades.applied }
 }
 
 export interface CfD1Database {

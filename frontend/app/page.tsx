@@ -49,12 +49,14 @@ function statusClass(status: ArticleStatus): string {
 
 function conexaoLabel(status: ConnectionStatus): string {
   if (status === 'ok') return 'OK'
+  if (status === 'atencao') return 'Atenção'
   if (status === 'erro') return 'Erro'
   return 'Não testado'
 }
 
 function conexaoClass(status: ConnectionStatus): string {
   if (status === 'ok') return 'text-emerald-700'
+  if (status === 'atencao') return 'text-amber-700'
   if (status === 'erro') return 'text-red-700'
   return 'text-slate-500'
 }

@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { PublishPanel } from '@/components/publish-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
@@ -28,6 +29,9 @@ export default function ReviewPage() {
   const seo = article.seo
   const titleLen = seo?.titulo_seo?.length ?? 0
   const metaLen = seo?.meta_description?.length ?? 0
+  const linksInvalid = (seo?.links_internos ?? []).some(
+    (l) => l.status_validacao !== 200 && l.status_validacao !== undefined,
+  )
 
   return (
     <div className="space-y-4">
@@ -99,27 +103,14 @@ export default function ReviewPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardTitle>Publicação</CardTitle>
-        <p className="mt-2 text-sm text-zinc-600">
-          Publicar fica desabilitado enquanto houver link interno inválido (scaffold: validação na API).
-        </p>
-        <Button
-          className="mt-4"
-          disabled={
-            (seo?.links_internos ?? []).some((l) => l.status_validacao !== 200 && l.status_validacao !== undefined)
-          }
-          onClick={() =>
-            api.articles.publish(id, {
-              categoria_ids: [],
-              tag_ids: [],
-              agendado_para: new Date(Date.now() + 86400000).toISOString(),
-            })
-          }
-        >
-          Publicar no WordPress
-        </Button>
-      </Card>
+      <PublishPanel
+        articleId={id}
+        clientId={article.client_id}
+        linksInvalid={linksInvalid}
+        initialWpPostType={article.wp_post_type}
+        initialAgendadoPara={article.agendado_para}
+        initialCategoriaIds={article.briefing?.categoria_ids}
+      />
     </div>
   )
 }

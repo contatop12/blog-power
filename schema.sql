@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS clients (
     autor_padrao_id         INTEGER,
     perfil_marca            TEXT,
     status_conexao          TEXT NOT NULL DEFAULT 'nao_testado'
-                            CHECK(status_conexao IN ('ok', 'erro', 'nao_testado')),
+                            CHECK(status_conexao IN ('ok', 'atencao', 'erro', 'nao_testado')),
     created_at              TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS client_urls (
                     CHECK(tipo IN ('servico', 'blog', 'institucional', 'outro')),
     kw_inferida     TEXT,
     origem          TEXT NOT NULL DEFAULT 'sitemap'
-                    CHECK(origem IN ('sitemap', 'manual', 'publicado_aqui')),
+                    CHECK(origem IN ('sitemap', 'manual', 'publicado_aqui', 'wordpress')),
     http_status     INTEGER,
     last_checked    TEXT,
     UNIQUE(client_id, url)
@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS articles (
     wp_url          TEXT,
     agendado_para   TEXT,
     publicado_em    TEXT,
+    wp_post_type    TEXT NOT NULL DEFAULT 'post'
+                    CHECK(wp_post_type IN ('post', 'page')),
     erro_msg        TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -80,9 +82,11 @@ CREATE INDEX IF NOT EXISTS idx_revisions_article ON article_revisions(article_id
 
 CREATE TABLE IF NOT EXISTS jobs (
     id              TEXT PRIMARY KEY,
-    article_id      TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    article_id      TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    client_id       TEXT REFERENCES clients(id) ON DELETE CASCADE,
     tipo            TEXT NOT NULL
-                    CHECK(tipo IN ('redigir', 'editar', 'imagem', 'publicar', 'validar_links')),
+                    CHECK(tipo IN ('redigir', 'editar', 'imagem', 'publicar',
+                                   'validar_links', 'sincronizar_corpus', 'sugerir_pautas')),
     status          TEXT NOT NULL DEFAULT 'pendente'
                     CHECK(status IN ('pendente', 'rodando', 'ok', 'erro')),
     payload         TEXT,
@@ -93,6 +97,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -105,7 +110,7 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('openrouter_model_redator', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_editor', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_imagem', 'anthropic/claude-sonnet-4-5'),
-    ('image_provider', 'openrouter');
+    ('image_provider', 'workers_ai');
 
 CREATE TABLE IF NOT EXISTS client_materials (
     id              TEXT PRIMARY KEY,
@@ -134,3 +139,44 @@ CREATE TABLE IF NOT EXISTS encrypted_settings (
     value_enc   TEXT NOT NULL,
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+
+-- Base de conhecimento: posts publicados no WordPress do cliente (migration 006)
+CREATE TABLE IF NOT EXISTS client_posts (
+    id              TEXT PRIMARY KEY,
+    client_id       TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    wp_post_id      INTEGER NOT NULL,
+    wp_post_type    TEXT NOT NULL DEFAULT 'post'
+                    CHECK(wp_post_type IN ('post', 'page')),
+    titulo          TEXT NOT NULL,
+    slug            TEXT,
+    url             TEXT NOT NULL,
+    excerpt         TEXT,
+    conteudo_txt    TEXT,
+    categorias      TEXT,
+    tags            TEXT,
+    palavras        INTEGER NOT NULL DEFAULT 0,
+    publicado_em    TEXT,
+    wp_modified     TEXT,
+    synced_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(client_id, wp_post_type, wp_post_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_posts_client ON client_posts(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_posts_modified ON client_posts(client_id, wp_modified);
+
+-- Pautas sugeridas pela IA a partir do corpus (migration 006)
+CREATE TABLE IF NOT EXISTS article_ideas (
+    id              TEXT PRIMARY KEY,
+    client_id       TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    tema            TEXT NOT NULL,
+    kw_principal    TEXT,
+    cluster         TEXT,
+    payload         TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'nova'
+                    CHECK(status IN ('nova', 'descartada', 'usada')),
+    article_id      TEXT REFERENCES articles(id) ON DELETE SET NULL,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_ideas_client ON article_ideas(client_id, status);

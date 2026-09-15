@@ -9,7 +9,8 @@
     "OPENROUTER_MODEL_REDATOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_EDITOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_IMAGEM": "anthropic/claude-sonnet-4-5",
-    "IMAGE_PROVIDER": "openrouter"
+    "OPENROUTER_MODEL_PAUTEIRO": "anthropic/claude-sonnet-4-5",
+    "IMAGE_PROVIDER": "workers_ai"
   },
   "d1_databases": [
     {
@@ -18,6 +19,12 @@
       "database_id": "190684c6-5af5-4712-8e0a-f7cc504242a1"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
+  "images": {
+    "binding": "IMAGE_TRANSFORM"
+  },
   "r2_buckets": [
     {
       "binding": "IMAGES",

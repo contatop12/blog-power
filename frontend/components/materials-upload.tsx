@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 import { api } from '@/lib/api'
 import { formatBytes } from '@/lib/client-form'
 import type { ClientMaterial } from '@publisher-p12/types'
@@ -20,6 +21,8 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -55,8 +58,28 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
 
   async function handleDelete(id: string) {
     if (!confirm('Remover este material?')) return
-    await api.materials.delete(clientId, id)
-    load()
+    setDeletingId(id)
+    setError(null)
+    try {
+      await api.materials.delete(clientId, id)
+      load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao remover')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  async function handleDownload(id: string, filename: string) {
+    setDownloadingId(id)
+    setError(null)
+    try {
+      await api.materials.download(clientId, id, filename)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao baixar')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   function onDrop(e: React.DragEvent) {
@@ -89,10 +112,11 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
           type="button"
           variant="outline"
           className="mt-3"
-          disabled={uploading}
+          loading={uploading}
+          loadingText="Enviando..."
           onClick={() => inputRef.current?.click()}
         >
-          {uploading ? 'Enviando...' : 'Selecionar arquivos'}
+          Selecionar arquivos
         </Button>
         <input
           ref={inputRef}
@@ -107,13 +131,18 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       <div className="mt-6">
-        {loading && <p className="text-sm text-zinc-500">Carregando materiais...</p>}
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <Spinner size="sm" className="text-blue-700" />
+            Carregando materiais...
+          </div>
+        )}
         {!loading && materials.length === 0 && (
-          <p className="text-sm text-zinc-500">Nenhum material enviado ainda.</p>
+          <p className="animate-fade-in text-sm text-zinc-500">Nenhum material enviado ainda.</p>
         )}
         <ul className="divide-y divide-zinc-100">
           {materials.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-4 py-3">
+            <li key={m.id} className="flex items-center justify-between gap-4 py-3 animate-fade-in">
               <div className="min-w-0">
                 <p className="truncate font-medium text-sm">{m.nome_original}</p>
                 <p className="text-xs text-zinc-500">
@@ -121,19 +150,23 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
                   {new Date(m.created_at).toLocaleString('pt-BR')}
                 </p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex shrink-0 items-center gap-3">
                 <button
                   type="button"
-                  className="text-sm text-blue-700 hover:underline"
-                  onClick={() => void api.materials.download(clientId, m.id, m.nome_original)}
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline disabled:opacity-50"
+                  disabled={downloadingId === m.id || deletingId === m.id}
+                  onClick={() => void handleDownload(m.id, m.nome_original)}
                 >
+                  {downloadingId === m.id && <Spinner size="sm" />}
                   Baixar
                 </button>
                 <button
                   type="button"
-                  className="text-sm text-red-600 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:underline disabled:opacity-50"
+                  disabled={deletingId === m.id || downloadingId === m.id}
                   onClick={() => void handleDelete(m.id)}
                 >
+                  {deletingId === m.id && <Spinner size="sm" />}
                   Remover
                 </button>
               </div>

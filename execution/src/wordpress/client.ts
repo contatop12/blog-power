@@ -55,7 +55,7 @@ export async function wpFetchBinary(
   body: ArrayBuffer | Uint8Array,
   contentType: string,
   filename: string,
-): Promise<{ id: number }> {
+): Promise<{ id: number; source_url?: string }> {
   const base = normalizeWpApiUrl(creds.wpApiUrl)
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
 
@@ -74,7 +74,7 @@ export async function wpFetchBinary(
     throw new Error(`WordPress media upload ${res.status}: ${errText}`)
   }
 
-  return (await res.json()) as { id: number }
+  return (await res.json()) as { id: number; source_url?: string }
 }
 
 export function buildSeoMetaFields(

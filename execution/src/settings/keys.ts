@@ -19,7 +19,7 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   openrouter_model_redator: 'anthropic/claude-sonnet-4-5',
   openrouter_model_editor: 'anthropic/claude-sonnet-4-5',
   openrouter_model_imagem: 'anthropic/claude-sonnet-4-5',
-  image_provider: 'openrouter',
+  image_provider: 'workers_ai',
 }
 
 export function maskSecret(value: string): string {
