@@ -1,7 +1,8 @@
 -- Migration 006: base de conhecimento do cliente (corpus de posts publicados)
 -- e pautas sugeridas pela IA. Também libera jobs de escopo "cliente" (sem artigo).
 
-PRAGMA foreign_keys = OFF;
+-- D1: adia a checagem de FK até o fim da transação (ver docs D1 migrations)
+PRAGMA defer_foreign_keys = true;
 
 -- 1) Corpus: todo post/página publicado no WordPress do cliente
 CREATE TABLE IF NOT EXISTS client_posts (
@@ -73,4 +74,3 @@ CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 
-PRAGMA foreign_keys = ON;

@@ -1,7 +1,8 @@
 -- Migration 007: client_urls aceita origem 'wordpress' (espelho do corpus de posts publicados)
 -- e recebe backfill de client_posts. Mantém a regra do PRD: links internos só de client_urls.
 
-PRAGMA foreign_keys = OFF;
+-- D1: adia a checagem de FK até o fim da transação (ver docs D1 migrations)
+PRAGMA defer_foreign_keys = true;
 
 CREATE TABLE client_urls_new (
     id              TEXT PRIMARY KEY,
@@ -30,7 +31,6 @@ ALTER TABLE client_urls_new RENAME TO client_urls;
 
 CREATE INDEX IF NOT EXISTS idx_client_urls_client ON client_urls(client_id);
 
-PRAGMA foreign_keys = ON;
 
 -- Backfill: posts já sincronizados passam a fazer parte do inventário de links
 INSERT INTO client_urls (id, client_id, url, titulo, slug, resumo, tipo, origem)
@@ -43,3 +43,7 @@ ON CONFLICT(client_id, url) DO UPDATE SET
     titulo = COALESCE(client_urls.titulo, excluded.titulo),
     resumo = COALESCE(client_urls.resumo, excluded.resumo),
     tipo = CASE WHEN client_urls.tipo = 'outro' THEN excluded.tipo ELSE client_urls.tipo END;
+
+-- Provider de imagem padrão passa a ser Workers AI (FLUX)
+UPDATE app_settings SET value = 'workers_ai', updated_at = datetime('now')
+WHERE key = 'image_provider' AND value = 'openrouter';
