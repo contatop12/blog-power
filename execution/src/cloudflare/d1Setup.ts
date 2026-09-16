@@ -1,8 +1,11 @@
 import type { D1Database } from '../types/d1.js'
 import {
+  AGENTES_SETTINGS_STATEMENT,
+  ARTICLES_AGENTES_COLUMNS,
   CLIENT_URLS_BACKFILL_STATEMENT,
   CLIENT_URLS_UPGRADE_STATEMENTS,
   D1_BOOTSTRAP_STATEMENTS,
+  JOBS_TIPO_UPGRADE_STATEMENTS,
   JOBS_UPGRADE_STATEMENTS,
   REQUIRED_TABLES,
 } from './migrations.js'
@@ -52,7 +55,30 @@ export async function needsClientUrlsUpgrade(db: D1Database): Promise<boolean> {
   return /CHECK\s*\(\s*origem/i.test(row.sql) && !row.sql.includes("'wordpress'")
 }
 
-/** Reconstruções de tabela das migrations 006/007 + backfill do inventário. Idempotente. */
+/** True quando jobs.tipo ainda tem CHECK sem os agentes novos (migration 008). */
+export async function needsJobsTipoUpgrade(db: D1Database): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'`)
+    .first<{ sql: string | null }>()
+
+  if (!row?.sql) return false
+  return /CHECK\s*\(\s*tipo/i.test(row.sql) && !row.sql.includes("'revisar'")
+}
+
+/** Colunas da migration 008 que ainda faltam em `articles`. */
+export async function missingArticlesAgentesColumns(db: D1Database): Promise<string[]> {
+  const row = await db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='articles'`)
+    .first<{ sql: string | null }>()
+
+  if (!row?.sql) return []
+  const sql = row.sql
+  return ARTICLES_AGENTES_COLUMNS.filter((c) => !new RegExp(`\\b${c.coluna}\\b`).test(sql)).map(
+    (c) => c.coluna,
+  )
+}
+
+/** Reconstruções de tabela das migrations 006/007/008 + backfill do inventário. Idempotente. */
 export async function applyD1Upgrades(db: D1Database): Promise<{ applied: number }> {
   let applied = 0
 
@@ -75,6 +101,27 @@ export async function applyD1Upgrades(db: D1Database): Promise<{ applied: number
   }
 
   await db.prepare(CLIENT_URLS_BACKFILL_STATEMENT).run()
+  applied++
+
+  // Migration 008: dossiê + QA no artigo, tipos de job novos, modelos dos agentes
+  const faltando = await missingArticlesAgentesColumns(db)
+  for (const { coluna, sql } of ARTICLES_AGENTES_COLUMNS) {
+    if (!faltando.includes(coluna)) continue
+    await db.prepare(sql).run()
+    applied++
+  }
+
+  if (await needsJobsTipoUpgrade(db)) {
+    for (const sql of JOBS_TIPO_UPGRADE_STATEMENTS) {
+      await db.prepare(sql).run()
+      applied++
+    }
+  }
+
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_jobs_article_tipo ON jobs(article_id, tipo)').run()
+  applied++
+
+  await db.prepare(AGENTES_SETTINGS_STATEMENT).run()
   applied++
 
   return { applied }

@@ -1,9 +1,11 @@
 import type { D1Database, MessageBatch, Queue, R2Bucket } from '@cloudflare/workers-types'
 import type {
   Briefing,
+  Dossie,
+  ImagemRef,
   JobTipo,
-  PerfilMarca,
   PublishArticleInput,
+  QaReport,
   QueueMessage,
   SeoJson,
   SyncCorpusInput,
@@ -11,9 +13,11 @@ import type {
   SuggestPautasInput,
   WpPostType,
 } from '@publisher-p12/types'
-import { CLIENT_SCOPED_JOBS } from '@publisher-p12/types'
+import { CLIENT_SCOPED_JOBS, JOBS_PARALELOS } from '@publisher-p12/types'
 import {
   R2_IMAGE_SCHEME,
+  SKILL_VERSION,
+  decidirAcaoPosRevisao,
   decryptSecret,
   enforceInternalLinks,
   extractR2ImageRefs,
@@ -22,9 +26,15 @@ import {
   generateImage,
   getCorpusConteudos,
   insertImagesIntoMarkdown,
+  mergeDossie,
+  normalizePerfilCliente,
+  parseDossie,
   resolveImageSlots,
+  resumoQa,
   stripGeneratedImages,
   uploadWpMedia,
+  validatePerfilCliente,
+  type CorpusBloco,
   type ImageProvider,
   type ImageTransformerLike,
   type UploadedMedia,
@@ -44,7 +54,9 @@ import {
   resolveOpenRouterApiKey,
   runEditor,
   runPauteiro,
+  runPesquisador,
   runRedator,
+  runRevisor,
   saveIdeas,
   upsertCorpusPosts,
   validateInternalLinks,
@@ -60,8 +72,10 @@ export interface PipelineBindings {
   OPENROUTER_MODEL_REDATOR: string
   OPENROUTER_MODEL_EDITOR: string
   OPENROUTER_MODEL_IMAGEM: string
-  /** Opcional: cai no modelo do Editor quando não definido. */
+  /** Opcionais: caem no modelo do Editor quando não definidos. */
   OPENROUTER_MODEL_PAUTEIRO?: string
+  OPENROUTER_MODEL_PESQUISADOR?: string
+  OPENROUTER_MODEL_REVISOR?: string
   IMAGE_PROVIDER: string
   /** Workers AI — geração de imagem (FLUX). */
   AI?: WorkersAiLike
@@ -71,6 +85,14 @@ export interface PipelineBindings {
 
 /** Decisão do produto: destacada + 2 imagens de apoio por artigo. */
 const IMAGENS_CORPO_POR_ARTIGO = 2
+
+/**
+ * Orçamento de tempo da sincronização do corpus dentro de uma invocação do consumer.
+ * Com blocos de 5, um blog de 3.000 posts são 600 requisições ao WordPress: não cabe
+ * numa execução só. Ao estourar, o job grava o que leu e enfileira uma continuação.
+ * Folga proposital sobre o teto de tempo de parede do Queue consumer.
+ */
+const SYNC_ORCAMENTO_MS = 8 * 60 * 1000
 
 async function updateJobStatus(
   db: D1Database,
@@ -106,6 +128,26 @@ async function enqueueNext(
   await env.ARTICLE_QUEUE.send({ job_id: jobId, article_id: articleId, tipo })
 }
 
+/** Continuação de job de escopo cliente (corpus que não coube no orçamento de tempo). */
+async function enqueueClientJob(
+  env: PipelineBindings,
+  clientId: string,
+  tipo: JobTipo,
+  payload?: Record<string, unknown>,
+): Promise<string> {
+  const jobId = crypto.randomUUID()
+  const ts = new Date().toISOString()
+  await env.DB.prepare(
+    `INSERT INTO jobs (id, client_id, tipo, status, payload, created_at)
+     VALUES (?, ?, ?, 'pendente', ?, ?)`,
+  )
+    .bind(jobId, clientId, tipo, payload ? JSON.stringify(payload) : null, ts)
+    .run()
+
+  await env.ARTICLE_QUEUE.send({ job_id: jobId, article_id: null, client_id: clientId, tipo })
+  return jobId
+}
+
 async function getArticleRow(db: D1Database, id: string) {
   return db.prepare('SELECT * FROM articles WHERE id = ?').bind(id).first<{
     id: string
@@ -115,12 +157,144 @@ async function getArticleRow(db: D1Database, id: string) {
     seo: string | null
     geo: string | null
     schema_jsonld: string | null
+    dossie: string | null
+    qa: string | null
     imagem_url: string | null
     imagem_alt: string | null
     conteudo_html: string | null
     wp_post_type: string | null
     wp_url: string | null
   }>()
+}
+
+// ---------------------------------------------------------------------------
+// Dossiê — estado compartilhado entre os agentes
+// ---------------------------------------------------------------------------
+
+async function loadDossie(db: D1Database, articleId: string): Promise<Dossie> {
+  const row = await db
+    .prepare('SELECT dossie FROM articles WHERE id = ?')
+    .bind(articleId)
+    .first<{ dossie: string | null }>()
+  return parseDossie(row?.dossie ?? null)
+}
+
+/** Lê, aplica a fatia do agente e grava. Cada agente escreve só o que é seu. */
+async function patchDossie(
+  db: D1Database,
+  articleId: string,
+  patch: Partial<Dossie>,
+): Promise<Dossie> {
+  const atual = await loadDossie(db, articleId)
+  const proximo = mergeDossie(atual, patch)
+  await db
+    .prepare('UPDATE articles SET dossie = ?, updated_at = ? WHERE id = ?')
+    .bind(JSON.stringify(proximo), new Date().toISOString(), articleId)
+    .run()
+  return proximo
+}
+
+function parseQa(raw: string | null | undefined): QaReport | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as QaReport
+  } catch {
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Junção do fan-out (imagem ‖ revisar)
+// ---------------------------------------------------------------------------
+
+/**
+ * O Queue não tem barreira de sincronização, então o último dos dois jobs a terminar é
+ * quem decide. Enquanto o irmão estiver pendente ou rodando, ninguém aplica veredito.
+ *
+ * Considera apenas o job mais recente daquele tipo: retry cria linha nova, e uma
+ * execução anterior com status 'erro' não pode travar a junção para sempre.
+ */
+async function irmaoConcluido(
+  db: D1Database,
+  articleId: string,
+  tipoIrmao: JobTipo,
+): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT status FROM jobs WHERE article_id = ? AND tipo = ?
+       ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(articleId, tipoIrmao)
+    .first<{ status: string }>()
+
+  // Sem job irmão registrado, não há o que esperar
+  if (!row) return true
+  return row.status === 'ok' || row.status === 'erro'
+}
+
+/**
+ * Aplica o veredito do Revisor quando `imagem` e `revisar` já terminaram.
+ * Devolve a ação tomada, ou null quando ainda falta o irmão.
+ */
+async function aplicarVeredito(
+  env: PipelineBindings,
+  articleId: string,
+  tipoAtual: JobTipo,
+): Promise<'aprovar' | 'corrigir' | 'escalar_humano' | 'aguardando' | 'sem_qa'> {
+  const tipoIrmao = JOBS_PARALELOS.find((t) => t !== tipoAtual)
+  if (!tipoIrmao) throw new Error(`Job ${tipoAtual} não faz parte do fan-out`)
+  if (!(await irmaoConcluido(env.DB, articleId, tipoIrmao))) return 'aguardando'
+
+  const row = await env.DB.prepare('SELECT qa FROM articles WHERE id = ?')
+    .bind(articleId)
+    .first<{ qa: string | null }>()
+  const qa = parseQa(row?.qa)
+
+  // Revisor falhou ou foi pulado: não trava o artigo, segue para revisão humana
+  if (!qa) {
+    await marcarEmRevisao(env.DB, articleId)
+    return 'sem_qa'
+  }
+
+  const acao = decidirAcaoPosRevisao(qa)
+
+  if (acao === 'corrigir') {
+    // Os dois jobs do fan-out podem terminar quase juntos e ambos enxergarem o irmão
+    // pronto. O UPDATE condicional é a trava: só quem muda a linha enfileira a correção.
+    const claim = await env.DB.prepare(
+      `UPDATE articles SET status = 'gerando', updated_at = ?
+       WHERE id = ? AND status <> 'gerando'`,
+    )
+      .bind(new Date().toISOString(), articleId)
+      .run()
+
+    if (!claim.meta?.changes) return 'aguardando'
+
+    const dossie = await patchDossie(env.DB, articleId, { rodada: qa.rodada + 1 })
+    await enqueueNext(env, articleId, 'redigir', { rodada: dossie.rodada })
+    return acao
+  }
+
+  await marcarEmRevisao(env.DB, articleId)
+  return acao
+}
+
+/**
+ * Chegar à junção significa que o artigo está pronto para o humano, então o estado é
+ * definido de uma vez: status e `erro_msg` juntos.
+ *
+ * Sem limpar `erro_msg`, a falha de um Revisor deixaria o artigo preso em 'erro' mesmo
+ * depois de o retry da fila dar certo — e a ordem em que os dois jobs paralelos terminam
+ * decidiria o status final. O erro do job continua registrado em `jobs` e aparece no
+ * painel de erros de serviço.
+ */
+async function marcarEmRevisao(db: D1Database, articleId: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE articles SET status = 'em_revisao', erro_msg = NULL, updated_at = ? WHERE id = ?`,
+    )
+    .bind(new Date().toISOString(), articleId)
+    .run()
 }
 
 /** Máximo de URLs do inventário enviadas ao Editor antes de recortar por relevância. */
@@ -197,15 +371,76 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
 
   try {
     switch (tipo) {
+      case 'pesquisar': {
+        const article = await getArticleRow(env.DB, articleId)
+        const client = article ? await getClientRow(env.DB, article.client_id) : null
+        if (!article?.briefing) throw new Error('Briefing ausente')
+        if (!client) throw new Error('Cliente não encontrado')
+
+        const perfilValido = validatePerfilCliente(
+          client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
+        )
+        if (!perfilValido.ok) throw new Error(perfilValido.mensagem)
+
+        const briefing = JSON.parse(article.briefing) as Briefing
+
+        // Inventário publicado: base da checagem de canibalização (§46) e do cluster (§6)
+        const corpus = await listCorpusForLinking(env.DB, client.id)
+        const relevantes = rankRelatedPosts(briefing, corpus, {
+          limit: 60,
+          boostUrls: briefing.artigos_irmaos ?? [],
+        })
+
+        const { pesquisa, pendencias } = await runPesquisador({
+          briefing,
+          perfil: JSON.parse(client.perfil_marca ?? 'null'),
+          inventario: relevantes.map((r) => ({
+            titulo: r.post.titulo,
+            url: r.post.url,
+            categorias: r.post.categorias.join('|'),
+            excerpt: (r.post.excerpt ?? '').slice(0, 200),
+            publicado_em: '',
+          })),
+          apiKey: openRouterKey,
+          model: env.OPENROUTER_MODEL_PESQUISADOR || env.OPENROUTER_MODEL_EDITOR,
+        })
+
+        await patchDossie(env.DB, articleId, {
+          skill_version: SKILL_VERSION,
+          pesquisa,
+          pendencias,
+        })
+
+        const conflitos = pesquisa.canibalizacao.filter((c) => c.recomendacao !== 'seguir')
+        await setJobResultado(env.DB, jobId, {
+          intencao: pesquisa.intencao,
+          cluster: pesquisa.cluster,
+          canibalizacao: conflitos.length,
+          posts_analisados: relevantes.length,
+          pendencias: pendencias.length,
+        })
+
+        await updateJobStatus(env.DB, jobId, 'ok')
+        await enqueueNext(env, articleId, 'redigir')
+        break
+      }
+
       case 'redigir': {
         const article = await getArticleRow(env.DB, articleId)
         const client = article ? await getClientRow(env.DB, article.client_id) : null
-        if (!article?.briefing || !client?.perfil_marca) {
-          throw new Error('Briefing ou perfil de marca ausente')
-        }
+        if (!article?.briefing) throw new Error('Briefing ausente')
+        if (!client) throw new Error('Cliente não encontrado')
+
+        const perfilValido = validatePerfilCliente(
+          client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
+        )
+        if (!perfilValido.ok) throw new Error(perfilValido.mensagem)
 
         const briefing = JSON.parse(article.briefing) as Briefing
-        const perfilMarca = JSON.parse(client.perfil_marca)
+        const dossie = parseDossie(article.dossie)
+        const qaAnterior = parseQa(article.qa)
+        // Rodada 2: corrige a versão reprovada em vez de recomeçar do zero
+        const corrigindo = dossie.rodada > 1 && qaAnterior?.veredito === 'reprovado'
 
         const { results: urlRows } = await env.DB.prepare(
           'SELECT url, titulo, resumo FROM client_urls WHERE client_id = ? LIMIT 20',
@@ -222,7 +457,10 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
 
         const conteudoMd = await runRedator({
           briefing,
-          perfilMarca,
+          perfil: JSON.parse(client.perfil_marca ?? 'null'),
+          pesquisa: dossie.pesquisa,
+          qaAnterior: corrigindo ? qaAnterior : null,
+          conteudoAnterior: corrigindo ? article.conteudo_md : null,
           urlsRelevantes: urlRows ?? [],
           artigosIrmaos: relacionados.map((r) =>
             r.post.excerpt ? `${r.post.titulo} — ${r.post.excerpt.slice(0, 160)}` : r.post.titulo,
@@ -237,6 +475,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           .bind(conteudoMd, new Date().toISOString(), articleId)
           .run()
 
+        await setJobResultado(env.DB, jobId, {
+          rodada: dossie.rodada,
+          corrigindo,
+          correcoes_aplicadas: corrigindo ? (qaAnterior?.correcoes.length ?? 0) : 0,
+        })
+
         await updateJobStatus(env.DB, jobId, 'ok')
         await enqueueNext(env, articleId, 'editar')
         break
@@ -245,11 +489,18 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
       case 'editar': {
         const article = await getArticleRow(env.DB, articleId)
         const client = article ? await getClientRow(env.DB, article.client_id) : null
-        if (!article?.conteudo_md || !article.briefing || !client?.perfil_marca) {
+        if (!article?.conteudo_md || !article.briefing) {
           throw new Error('Artigo ou contexto incompleto para edição')
         }
+        if (!client) throw new Error('Cliente não encontrado')
+
+        const perfilValido = validatePerfilCliente(
+          client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
+        )
+        if (!perfilValido.ok) throw new Error(perfilValido.mensagem)
 
         const briefing = JSON.parse(article.briefing) as Briefing
+        const dossieEditor = parseDossie(article.dossie)
         const selfUrl = article.wp_url ?? null
 
         const { results: urlRows } = await env.DB.prepare(
@@ -304,7 +555,8 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         const output = await runEditor({
           conteudoMd: article.conteudo_md,
           briefing,
-          perfilMarca: JSON.parse(client.perfil_marca),
+          perfil: JSON.parse(client.perfil_marca ?? 'null'),
+          pesquisa: dossieEditor.pesquisa,
           clientUrls: clientUrlsPrompt.map((u) => ({ url: u.url, titulo: u.titulo })),
           linksCandidatos,
           seoPlugin: client.seo_plugin,
@@ -379,38 +631,65 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           .run()
 
         await updateJobStatus(env.DB, jobId, 'ok')
-        await enqueueNext(env, articleId, 'imagem')
+
+        // Fan-out: imagem e revisão rodam juntas. O Revisor é read-only sobre conteudo_md,
+        // então só o job de imagem escreve o markdown — sem lost update.
+        // Rodada 2 reaproveita as imagens já geradas: reposiciona em vez de pagar de novo.
+        const dossieFanOut = parseDossie(article.dossie)
+        await enqueueNext(env, articleId, 'imagem', {
+          reaproveitar: dossieFanOut.rodada > 1 && dossieFanOut.imagens_refs.length > 0,
+        })
+        await enqueueNext(env, articleId, 'revisar', { rodada: dossieFanOut.rodada })
         break
       }
 
       case 'imagem': {
         const article = await getArticleRow(env.DB, articleId)
         const client = article ? await getClientRow(env.DB, article.client_id) : null
-        if (!article?.seo || !client?.perfil_marca) throw new Error('SEO ou perfil ausente')
+        if (!article?.seo) throw new Error('SEO ausente')
+        if (!client) throw new Error('Cliente não encontrado')
 
         const seo = JSON.parse(article.seo) as SeoJson
-        const perfil = JSON.parse(client.perfil_marca) as { diretriz_visual?: string }
+        const perfil = normalizePerfilCliente(
+          client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
+        )
         const briefing = article.briefing ? (JSON.parse(article.briefing) as Briefing) : null
         const tema = briefing?.tema || seo.titulo_seo
+
+        const dossieImagem = parseDossie(article.dossie)
+        const payloadImagem =
+          (await getJobPayload<{ reaproveitar?: boolean }>(env.DB, jobId)) ?? {}
+        // Rodada de correção: o texto mudou, as imagens não. Reposiciona o que já está no R2.
+        const reaproveitar =
+          payloadImagem.reaproveitar === true && dossieImagem.imagens_refs.length > 0
+
         const gerar = {
-          diretrizVisual: perfil.diretriz_visual ?? '',
+          diretrizVisual: perfil.diretriz_visual,
           provider: (env.IMAGE_PROVIDER || 'workers_ai') as ImageProvider,
           ai: env.AI,
           transformer: env.IMAGE_TRANSFORM,
         }
 
-        // Destacada: sem ela o post fica sem imagem de Open Graph, então a falha interrompe o job
-        const destacada = await generateImage({
-          ...gerar,
-          prompt: seo.imagem?.prompt || tema,
-          alt: seo.imagem?.alt || seo.titulo_seo,
-          width: 1200,
-          height: 630,
-        })
-        const destacadaKey = `articles/${articleId}/featured`
-        await env.IMAGES.put(destacadaKey, destacada.bytes, {
-          httpMetadata: { contentType: destacada.contentType },
-        })
+        let destacadaKey = article.imagem_url
+        let destacadaAlt = article.imagem_alt
+        let destacadaConvertida = false
+
+        if (!reaproveitar || !destacadaKey) {
+          // Destacada: sem ela o post fica sem Open Graph, então a falha interrompe o job
+          const destacada = await generateImage({
+            ...gerar,
+            prompt: seo.imagem?.prompt || tema,
+            alt: seo.imagem?.alt || seo.titulo_seo,
+            width: 1200,
+            height: 630,
+          })
+          destacadaKey = `articles/${articleId}/featured`
+          destacadaAlt = destacada.alt
+          destacadaConvertida = destacada.convertido
+          await env.IMAGES.put(destacadaKey, destacada.bytes, {
+            httpMetadata: { contentType: destacada.contentType },
+          })
+        }
 
         // Corpo: remove imagens de uma geração anterior antes de posicionar as novas
         const markdownBase = stripGeneratedImages(article.conteudo_md ?? '')
@@ -419,9 +698,23 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           : []
 
         const inserir: Array<{ secao: string; src: string; alt: string }> = []
+        const refs: ImagemRef[] = []
         const falhas: Array<{ secao: string; erro: string }> = []
 
         for (const [indice, slot] of slots.entries()) {
+          if (reaproveitar) {
+            // Os refs mantêm a ordem em que foram gerados; a seção é a do texto novo
+            const ref = dossieImagem.imagens_refs[indice]
+            if (!ref) continue
+            inserir.push({
+              secao: slot.secao,
+              src: `${R2_IMAGE_SCHEME}${ref.r2_key}`,
+              alt: slot.alt || ref.alt,
+            })
+            refs.push({ secao: slot.secao, r2_key: ref.r2_key, alt: slot.alt || ref.alt })
+            continue
+          }
+
           try {
             const imagem = await generateImage({
               ...gerar,
@@ -433,6 +726,7 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
             const key = `articles/${articleId}/corpo-${indice + 1}`
             await env.IMAGES.put(key, imagem.bytes, { httpMetadata: { contentType: imagem.contentType } })
             inserir.push({ secao: slot.secao, src: `${R2_IMAGE_SCHEME}${key}`, alt: imagem.alt })
+            refs.push({ secao: slot.secao, r2_key: key, alt: imagem.alt })
           } catch (err) {
             // Imagem de apoio é complementar: registra e segue com o artigo
             falhas.push({ secao: slot.secao, erro: err instanceof Error ? err.message : String(err) })
@@ -445,11 +739,11 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         await env.DB.prepare(
           `UPDATE articles SET imagem_url = ?, imagem_alt = ?,
            conteudo_md = COALESCE(?, conteudo_md), conteudo_html = COALESCE(?, conteudo_html),
-           status = 'em_revisao', updated_at = ? WHERE id = ?`,
+           updated_at = ? WHERE id = ?`,
         )
           .bind(
             destacadaKey,
-            destacada.alt,
+            destacadaAlt,
             temConteudo ? markdown : null,
             temConteudo ? markdownToGutenberg(markdown) : null,
             new Date().toISOString(),
@@ -457,12 +751,62 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           )
           .run()
 
+        // Refs no dossiê: é o que permite reposicionar sem gerar de novo na rodada 2
+        await patchDossie(env.DB, articleId, { imagens_refs: refs })
+
+        await updateJobStatus(env.DB, jobId, 'ok')
+
+        const acaoImagem = await aplicarVeredito(env, articleId, 'imagem')
         await setJobResultado(env.DB, jobId, {
-          destacada_webp: destacada.convertido,
+          reaproveitou: reaproveitar,
+          destacada_webp: destacadaConvertida,
           imagens_corpo: inserir.length,
           falhas,
+          juncao: acaoImagem,
         })
+        break
+      }
+
+      case 'revisar': {
+        const article = await getArticleRow(env.DB, articleId)
+        const client = article ? await getClientRow(env.DB, article.client_id) : null
+        if (!article?.conteudo_md || !article.briefing) {
+          throw new Error('Artigo incompleto para revisão')
+        }
+        if (!client) throw new Error('Cliente não encontrado')
+
+        const dossieRevisor = parseDossie(article.dossie)
+        const payloadRevisor = (await getJobPayload<{ rodada?: number }>(env.DB, jobId)) ?? {}
+        const rodada = payloadRevisor.rodada ?? dossieRevisor.rodada
+
+        const qa = await runRevisor({
+          conteudoMd: article.conteudo_md,
+          briefing: JSON.parse(article.briefing) as Briefing,
+          perfil: JSON.parse(client.perfil_marca ?? 'null'),
+          seo: article.seo ? (JSON.parse(article.seo) as SeoJson) : null,
+          pesquisa: dossieRevisor.pesquisa,
+          rodada,
+          apiKey: openRouterKey,
+          model: env.OPENROUTER_MODEL_REVISOR || env.OPENROUTER_MODEL_EDITOR,
+        })
+
+        // Revisor é read-only sobre conteudo_md: grava só a coluna qa
+        await env.DB.prepare('UPDATE articles SET qa = ?, updated_at = ? WHERE id = ?')
+          .bind(JSON.stringify(qa), new Date().toISOString(), articleId)
+          .run()
+
         await updateJobStatus(env.DB, jobId, 'ok')
+
+        const acaoRevisor = await aplicarVeredito(env, articleId, 'revisar')
+        await setJobResultado(env.DB, jobId, {
+          veredito: qa.veredito,
+          rodada: qa.rodada,
+          reprovadas: qa.reprovadas,
+          correcoes: qa.correcoes.length,
+          fatos_sem_fonte: qa.fatos_sem_fonte.length,
+          resumo: resumoQa(qa),
+          juncao: acaoRevisor,
+        })
         break
       }
 
@@ -612,36 +956,68 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           total_lidos: 0,
           inseridos: 0,
           atualizados: 0,
-          paginas_lidas: 0,
+          blocos_lidos: 0,
+          continua: false,
           tipos,
         }
 
-        for (const postType of tipos) {
-          const modifiedAfter = payload.completo
-            ? null
-            : await getUltimoModified(env.DB, clientIdMsg, postType)
+        // Orçamento compartilhado entre os tipos: o consumer tem teto de tempo de parede
+        const inicioSync = Date.now()
+        const tiposPendentes: WpPostType[] = []
 
-          const { posts, paginas_lidas } = await fetchPublishedPosts({
+        for (const postType of tipos) {
+          if (Date.now() - inicioSync >= SYNC_ORCAMENTO_MS) {
+            tiposPendentes.push(postType)
+            continue
+          }
+
+          // Continuação retoma pelo que já está no banco; `completo` só vale na 1ª chamada
+          const modifiedAfter =
+            payload.completo && !payload.continuacao
+              ? null
+              : await getUltimoModified(env.DB, clientIdMsg, postType)
+
+          const leitura = await fetchPublishedPosts({
             creds,
             postType,
             modifiedAfter,
+            orcamentoMs: SYNC_ORCAMENTO_MS - (Date.now() - inicioSync),
+            // Grava bloco a bloco: falha no bloco 40 preserva os 39 anteriores
+            onBloco: async ({ posts }: CorpusBloco) => {
+              const { inseridos, atualizados } = await upsertCorpusPosts(
+                env.DB,
+                clientIdMsg,
+                posts,
+              )
+              // PRD: links internos só de client_urls — o corpus precisa estar no inventário
+              await mirrorCorpusToClientUrls(env.DB, clientIdMsg, posts)
+
+              resultado.inseridos += inseridos
+              resultado.atualizados += atualizados
+            },
           })
 
-          const { inseridos, atualizados } = await upsertCorpusPosts(
-            env.DB,
-            clientIdMsg,
-            posts,
-          )
-          // PRD: links internos só de client_urls — o corpus precisa estar no inventário
-          await mirrorCorpusToClientUrls(env.DB, clientIdMsg, posts)
+          resultado.total_lidos += leitura.total_lidos
+          resultado.blocos_lidos += leitura.blocos_lidos
 
-          resultado.total_lidos += posts.length
-          resultado.inseridos += inseridos
-          resultado.atualizados += atualizados
-          resultado.paginas_lidas += paginas_lidas
+          if (leitura.incompleto) tiposPendentes.push(postType)
         }
 
-        await setJobResultado(env.DB, jobId, resultado as unknown as Record<string, unknown>)
+        // O que não coube vira um job novo, que retoma pelo MAX(wp_modified) já gravado
+        if (tiposPendentes.length > 0) {
+          resultado.continua = true
+          const continuacaoId = await enqueueClientJob(env, clientIdMsg, 'sincronizar_corpus', {
+            tipos: tiposPendentes,
+            continuacao: true,
+          })
+          await setJobResultado(env.DB, jobId, {
+            ...(resultado as unknown as Record<string, unknown>),
+            continuacao_job_id: continuacaoId,
+          })
+        } else {
+          await setJobResultado(env.DB, jobId, resultado as unknown as Record<string, unknown>)
+        }
+
         await updateJobStatus(env.DB, jobId, 'ok')
         break
       }
@@ -657,9 +1033,6 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         }
 
         const payload = (await getJobPayload<SuggestPautasInput>(env.DB, jobId)) ?? {}
-        const perfilMarca = client.perfil_marca
-          ? (JSON.parse(client.perfil_marca) as PerfilMarca)
-          : null
 
         const categorias = [
           ...new Set(corpus.flatMap((item) => item.categorias).filter(Boolean)),
@@ -667,7 +1040,7 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
 
         const resultado = await runPauteiro({
           corpus,
-          perfilMarca,
+          perfil: client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
           categorias,
           pautasExistentes: await listTemasJaSugeridos(env.DB, clientIdMsg),
           quantidade: payload.quantidade,

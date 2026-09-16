@@ -1,5 +1,7 @@
-import type { PautaSugerida, PerfilMarca, SuggestPautasResult } from '@publisher-p12/types'
+import type { PautaSugerida, SuggestPautasResult } from '@publisher-p12/types'
 import type { CorpusPromptItem } from '../corpus/store.js'
+import { renderPerfilParaPrompt } from '../skill/perfil.js'
+import { buildSystemPrompt } from '../skill/skill.js'
 import { chatJson } from './client.js'
 
 /** Teto de caracteres do inventário enviado ao modelo (~30k tokens). */
@@ -33,7 +35,8 @@ export interface CorpusDigest {
 
 export interface PauteiroInput {
   corpus: CorpusPromptItem[]
-  perfilMarca: PerfilMarca | null
+  /** PerfilCliente cru; a renderização acontece aqui dentro. */
+  perfil: unknown
   /** Categorias WP disponíveis, para a pauta já nascer classificada. */
   categorias?: string[]
   /** Temas já sugeridos antes — o modelo não pode repetir. */
@@ -44,19 +47,12 @@ export interface PauteiroInput {
   model?: string
 }
 
-const SYSTEM_PROMPT = `Você é pauteiro de conteúdo SEO/GEO para blogs B2B.
-Recebe o inventário COMPLETO dos artigos já publicados pelo cliente e propõe pautas NOVAS.
+const FORMATO = `Chaves do inventário: t=título, u=url, c=categorias, d=data, w=palavras, e=resumo.
 
-Chaves do inventário: t=título, u=url, c=categorias, d=data, w=palavras, e=resumo.
-
-Regras:
+Regras adicionais:
 - PROIBIDO propor tema já coberto pelo inventário ou repetido na lista de pautas existentes.
 - Toda pauta deve citar ao menos 1 URL do inventário em artigos_relacionados (base dos links internos).
-- cluster = tema-pai identificado no próprio inventário.
-- justificativa = qual lacuna de cobertura ou etapa de funil a pauta preenche.
 - risco_canibalizacao = título do artigo existente que pode competir, ou null.
-- Respeite as proibições do perfil de marca. Não invente números, datas ou estatísticas.
-- Palavra-chave e textos em português do Brasil.
 
 Retorne JSON: { "pautas": [ { tema, kw_principal, kws_secundarias[], intencao, etapa_funil,
 angulo, publico, extensao_alvo, cluster, justificativa, artigos_relacionados[], risco_canibalizacao } ] }`
@@ -155,7 +151,6 @@ export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasRe
   const userContent = JSON.stringify({
     quantidade,
     foco: input.foco ?? null,
-    perfil_marca: input.perfilMarca,
     categorias_wp: input.categorias ?? [],
     pautas_ja_sugeridas: input.pautasExistentes ?? [],
     corpus_truncado: truncado,
@@ -166,7 +161,10 @@ export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasRe
     apiKey: input.apiKey,
     model: input.model,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'system',
+        content: `${buildSystemPrompt('pauteiro', renderPerfilParaPrompt(input.perfil))}\n\n---\n\n${FORMATO}`,
+      },
       { role: 'user', content: `Proponha ${quantidade} pautas novas:\n${userContent}` },
     ],
     referer: 'https://publisher.p12.digital',

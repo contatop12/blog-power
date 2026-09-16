@@ -20,6 +20,7 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     status TEXT NOT NULL DEFAULT 'briefing', briefing TEXT, conteudo_md TEXT,
     conteudo_html TEXT, seo TEXT, geo TEXT, schema_jsonld TEXT,
+    dossie TEXT, qa TEXT,
     imagem_url TEXT, imagem_alt TEXT, wp_post_id INTEGER, wp_url TEXT,
     agendado_para TEXT, publicado_em TEXT, wp_post_type TEXT NOT NULL DEFAULT 'post',
     erro_msg TEXT,
@@ -39,6 +40,7 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     created_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_article_tipo ON jobs(article_id, tipo)`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY, value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
@@ -46,6 +48,9 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     ('openrouter_model_redator', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_editor', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_imagem', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_pesquisador', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_revisor', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_pauteiro', 'anthropic/claude-sonnet-4-5'),
     ('image_provider', 'workers_ai')`,
   `CREATE TABLE IF NOT EXISTS client_materials (
     id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -132,6 +137,49 @@ export const JOBS_UPGRADE_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
 ]
+
+/**
+ * Migration 008: `articles` ganha o dossiê compartilhado e o relatório de QA.
+ * ALTER TABLE ADD COLUMN falha se a coluna já existe, então cada statement é
+ * aplicado só quando `needsArticlesAgentesUpgrade` indica a coluna faltando.
+ */
+export const ARTICLES_AGENTES_COLUMNS: Array<{ coluna: string; sql: string }> = [
+  { coluna: 'dossie', sql: `ALTER TABLE articles ADD COLUMN dossie TEXT` },
+  { coluna: 'qa', sql: `ALTER TABLE articles ADD COLUMN qa TEXT` },
+]
+
+/**
+ * Migration 008: bancos criados pelo schema.sql têm CHECK em jobs.tipo sem
+ * 'pesquisar'/'revisar'. Reconstrói a tabela só nesse caso (ver needsJobsTipoUpgrade).
+ */
+export const JOBS_TIPO_UPGRADE_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS jobs_tipo_upgrade (
+    id TEXT PRIMARY KEY,
+    article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    client_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL
+      CHECK(tipo IN ('pesquisar', 'redigir', 'editar', 'imagem', 'revisar',
+                     'publicar', 'validar_links', 'sincronizar_corpus', 'sugerir_pautas')),
+    status TEXT NOT NULL DEFAULT 'pendente'
+      CHECK(status IN ('pendente', 'rodando', 'ok', 'erro')),
+    payload TEXT, tentativas INTEGER NOT NULL DEFAULT 0, erro TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`,
+  `INSERT INTO jobs_tipo_upgrade (id, article_id, client_id, tipo, status, payload, tentativas, erro, created_at, finished_at)
+    SELECT id, article_id, client_id, tipo, status, payload, tentativas, erro, created_at, finished_at
+    FROM jobs`,
+  `DROP TABLE jobs`,
+  `ALTER TABLE jobs_tipo_upgrade RENAME TO jobs`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_article_tipo ON jobs(article_id, tipo)`,
+]
+
+/** Migration 008: modelos dos agentes novos. Idempotente. */
+export const AGENTES_SETTINGS_STATEMENT = `INSERT OR IGNORE INTO app_settings (key, value) VALUES
+    ('openrouter_model_pesquisador', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_revisor', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_pauteiro', 'anthropic/claude-sonnet-4-5')`
 
 export const REQUIRED_TABLES = [
   'clients',

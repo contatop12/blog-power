@@ -1,16 +1,20 @@
-# SOP: Agente Editor SEO/GEO (PRD §7.2)
+# SOP: Agente Editor SEO/GEO (PRD §7.2 / Skill §12-§14, §28-§42, §48, §49)
 
 ## Objetivo
 Revisar artigo (padrão gerador-crítico) e produzir camada estruturada: `seo.json`, `geo.json`, `schema_jsonld`, prompt de imagem.
 
 ## Entradas
 - `conteudo_md` do Redator
-- `briefing`, `perfil_marca`
+- `briefing`
+- Perfil do cliente (`directives/perfil_cliente.md`), renderizado no system prompt
+- `dossie.pesquisa`: cluster, entidades e freshness diagnosticados pelo Pesquisador
 - `client_urls` (inventário completo do cliente)
 - `seo_plugin` do cliente (yoast | rankmath | nenhum)
 
 ## Execução
-- Módulo: `execution/openrouter/editor.ts`
+- Job de fila: `tipo = 'editar'`
+- Módulo: `execution/src/openrouter/editor.ts` → `runEditor`
+- System prompt: `NUCLEO` + bloco `EDITOR` + perfil renderizado
 - Modelo: `OPENROUTER_MODEL_EDITOR`
 
 ## Saídas
@@ -22,9 +26,13 @@ Revisar artigo (padrão gerador-crítico) e produzir camada estruturada: `seo.js
 ## Regras críticas
 - Links internos **somente** de `client_urls`
 - URLs não publicadas → `links_internos_futuros`, nunca no corpo
-- Title SEO 50–60 chars; meta 140–160 chars
-- Sem linguagem promocional excessiva (skill seo-profissional item 27/29)
+- Title SEO 50–60 chars; meta 140–160 chars (referência editorial, não regra absoluta — §28/§29)
+- Sem linguagem promocional excessiva (Skill §43)
 - Schema: nunca duplicar Article/BreadcrumbList se plugin SEO ativo
+- Link externo só quando sustenta uma afirmação; nunca aponta para concorrente (§13, §59)
+- Campos complementares do §31: `canonical`, `categoria_sugerida`, `tags_sugeridas`,
+  `breadcrumb`. Tag só quando existe taxonomia real no site.
+- `freshness` classifica a cadência de revisão do artigo (§49)
 
 ## Edge cases
 - Link proposto fora do inventário: mover para `links_internos_futuros`
@@ -33,6 +41,10 @@ Revisar artigo (padrão gerador-crítico) e produzir camada estruturada: `seo.js
 ## Critérios de validação
 - Checklist PRD §7.2 (itens 14–48)
 - Após edição: rodar `execution/links/validate.ts`
+
+## Próxima etapa
+`validar_links` roda a checagem HTTP e então dispara **em paralelo** `imagem` e `revisar`.
+O Revisor audita o resultado desta etapa contra o checklist §63. Ver `directives/revisar.md`.
 
 ## Links internos semânticos (base de conhecimento)
 Antes do Editor, o pipeline monta `links_candidatos` de forma determinística:

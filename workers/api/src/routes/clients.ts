@@ -11,6 +11,7 @@ import {
   upsertClientUrls,
 } from '../lib/db.js'
 import {
+  calcularCompletude,
   createWpCategory,
   decryptSecret,
   deleteWpCategory,
@@ -19,11 +20,16 @@ import {
   listWpAuthors,
   listWpCategories,
   listWpTags,
+  normalizePerfilCliente,
   testWordPressConnection,
   updateWpCategory,
   urlToSlug,
 } from '@publisher-p12/execution'
-import type { CreateWpCategoryInput, UpdateWpCategoryInput } from '@publisher-p12/types'
+import type {
+  CreateWpCategoryInput,
+  PerfilClienteView,
+  UpdateWpCategoryInput,
+} from '@publisher-p12/types'
 
 const clients = new Hono<{ Bindings: ApiBindings }>()
 
@@ -69,6 +75,43 @@ clients.patch('/:id', async (c) => {
   const client = await updateClient(c.env.DB, c.req.param('id'), body, c.env.ENCRYPTION_KEY)
   if (!client) return c.json({ error: 'Cliente não encontrado' }, 404)
   return c.json(client)
+})
+
+clients.get('/:id/perfil', async (c) => {
+  const clientId = c.req.param('id')
+  const client = await getClient(c.env.DB, clientId)
+  if (!client) return c.json({ error: 'Cliente não encontrado' }, 404)
+
+  const perfil = normalizePerfilCliente(client.perfil_marca)
+  const view: PerfilClienteView = {
+    client_id: clientId,
+    perfil,
+    completude: calcularCompletude(perfil),
+  }
+  return c.json(view)
+})
+
+clients.put('/:id/perfil', async (c) => {
+  const clientId = c.req.param('id')
+  const client = await getClient(c.env.DB, clientId)
+  if (!client) return c.json({ error: 'Cliente não encontrado' }, 404)
+
+  // Salvamento parcial é permitido: a completude diz o que ainda falta para o pipeline rodar
+  const perfil = normalizePerfilCliente(await c.req.json())
+  const atualizado = await updateClient(
+    c.env.DB,
+    clientId,
+    { perfil_marca: perfil },
+    c.env.ENCRYPTION_KEY,
+  )
+  if (!atualizado) return c.json({ error: 'Cliente não encontrado' }, 404)
+
+  const view: PerfilClienteView = {
+    client_id: clientId,
+    perfil,
+    completude: calcularCompletude(perfil),
+  }
+  return c.json(view)
 })
 
 clients.delete('/:id', async (c) => {

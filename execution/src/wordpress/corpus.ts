@@ -33,18 +33,58 @@ export interface CorpusPost {
   wp_modified: string | null
 }
 
+/**
+ * Tamanho do bloco de leitura. 5 mantém a resposta da REST API pequena mesmo com `_embed`,
+ * ao custo de mais requisições: 232 posts viram ~47 blocos em vez de 3 páginas.
+ */
+export const CORPUS_BLOCO_PADRAO = 5
+
+/**
+ * Trava de segurança por posts, não por páginas. Com blocos de 5, um limite de páginas
+ * cortaria a sync muito antes do volume real de um blog grande.
+ */
+export const CORPUS_MAX_POSTS = 6000
+
+/** Bloco lido, entregue ao callback antes de o próximo ser buscado. */
+export interface CorpusBloco {
+  posts: CorpusPost[]
+  /** 1-indexado. */
+  bloco: number
+  /** Total acumulado até o fim deste bloco. */
+  total_lidos: number
+}
+
 export interface FetchPublishedPostsInput {
   creds: WordPressCredentials
   postType?: WpPostType
   /** ISO UTC do post mais recente já ingerido — sync incremental. */
   modifiedAfter?: string | null
   perPage?: number
-  maxPaginas?: number
+  /** Teto de posts por chamada. Padrão CORPUS_MAX_POSTS. */
+  maxPosts?: number
+  /**
+   * Gravação incremental: chamado a cada bloco, antes de buscar o próximo.
+   * Quando informado, os posts não são acumulados em memória.
+   */
+  onBloco?: (bloco: CorpusBloco) => Promise<void>
+  /**
+   * Orçamento de tempo em ms. Ao estourar, a leitura para e devolve `incompleto: true`
+   * para que o job enfileire uma continuação em vez de morrer no teto do consumer.
+   */
+  orcamentoMs?: number
+  /** Injetável em teste. */
+  agora?: () => number
 }
 
 export interface FetchPublishedPostsResult {
+  /** Vazio quando `onBloco` é usado: nesse modo nada fica acumulado. */
   posts: CorpusPost[]
-  paginas_lidas: number
+  blocos_lidos: number
+  total_lidos: number
+  /** True quando parou por orçamento de tempo ou teto de posts, e não por fim do inventário. */
+  incompleto: boolean
+  /** `modified` do último post lido. Semente da continuação. */
+  ultimo_modified: string | null
 }
 
 const NAMED_ENTITIES: Record<string, string> = {
@@ -155,21 +195,34 @@ function isPaginaInexistente(err: unknown): boolean {
 }
 
 /**
- * Lê todos os posts publicados do cliente, paginando até acabar.
- * Ordena por `modified` para que o sync incremental use `modified_after`.
+ * Lê os posts publicados do cliente em blocos pequenos, entregando cada bloco a `onBloco`
+ * antes de buscar o próximo — a gravação acontece durante a leitura, não no fim.
+ *
+ * Ordena por `modified asc`: é o que torna `modified_after` confiável e permite que uma
+ * continuação retome exatamente de onde parou.
  */
 export async function fetchPublishedPosts(
   input: FetchPublishedPostsInput,
 ): Promise<FetchPublishedPostsResult> {
   const postType: WpPostType = input.postType ?? 'post'
-  const perPage = Math.min(Math.max(input.perPage ?? 100, 1), 100)
-  const maxPaginas = input.maxPaginas ?? 60
+  const perPage = Math.min(Math.max(input.perPage ?? CORPUS_BLOCO_PADRAO, 1), 100)
+  const maxPosts = input.maxPosts ?? CORPUS_MAX_POSTS
+  const agora = input.agora ?? (() => Date.now())
+  const inicio = agora()
   const collection = wpRestCollection(postType)
 
+  // Sem callback, o resultado precisa carregar tudo. Com callback, nada é acumulado.
+  const acumular = !input.onBloco
   const posts: CorpusPost[] = []
-  let paginasLidas = 0
 
-  for (let page = 1; page <= maxPaginas; page += 1) {
+  let blocosLidos = 0
+  let totalLidos = 0
+  let ultimoModified: string | null = null
+  let incompleto = false
+
+  const maxBlocos = Math.ceil(maxPosts / perPage)
+
+  for (let page = 1; page <= maxBlocos; page += 1) {
     const params = new URLSearchParams({
       status: 'publish',
       per_page: String(perPage),
@@ -192,14 +245,44 @@ export async function fetchPublishedPosts(
       throw err
     }
 
-    paginasLidas += 1
     const lote = Array.isArray(batch) ? batch : []
-    for (const raw of lote) {
-      posts.push(mapWpPostToCorpus(raw, postType))
+    const mapeados = lote.map((raw) => mapWpPostToCorpus(raw, postType))
+
+    blocosLidos += 1
+    totalLidos += mapeados.length
+    if (mapeados.length > 0) {
+      ultimoModified = mapeados[mapeados.length - 1]?.wp_modified ?? ultimoModified
     }
 
-    if (lote.length < perPage) break
+    if (acumular) posts.push(...mapeados)
+
+    // Grava antes de buscar o próximo: falha no bloco 40 preserva os 39 anteriores
+    if (input.onBloco && mapeados.length > 0) {
+      await input.onBloco({ posts: mapeados, bloco: blocosLidos, total_lidos: totalLidos })
+    }
+
+    // Lote menor que o pedido = última página do inventário
+    if (lote.length < perPage) {
+      return { posts, blocos_lidos: blocosLidos, total_lidos: totalLidos, incompleto: false, ultimo_modified: ultimoModified }
+    }
+
+    if (totalLidos >= maxPosts) {
+      incompleto = true
+      break
+    }
+
+    if (input.orcamentoMs && agora() - inicio >= input.orcamentoMs) {
+      incompleto = true
+      break
+    }
   }
 
-  return { posts, paginas_lidas: paginasLidas }
+  // Saiu do laço sem lote curto: o inventário pode ter mais posts do que coube nesta chamada
+  return {
+    posts,
+    blocos_lidos: blocosLidos,
+    total_lidos: totalLidos,
+    incompleto: incompleto || blocosLidos >= maxBlocos,
+    ultimo_modified: ultimoModified,
+  }
 }

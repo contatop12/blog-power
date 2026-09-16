@@ -130,7 +130,9 @@ describe('fetchPublishedPosts', () => {
     const result = await fetchPublishedPosts({ creds: CREDS, perPage: 2 })
 
     expect(result.posts.map((p) => p.wp_post_id)).toEqual([1, 2, 3])
-    expect(result.paginas_lidas).toBe(2)
+    expect(result.blocos_lidos).toBe(2)
+    expect(result.total_lidos).toBe(3)
+    expect(result.incompleto).toBe(false)
     expect(urls[0]).toContain('/wp/v2/posts?')
     expect(urls[0]).toContain('status=publish')
     expect(urls[0]).toContain('per_page=2')
@@ -149,7 +151,7 @@ describe('fetchPublishedPosts', () => {
     const result = await fetchPublishedPosts({ creds: CREDS, perPage: 1 })
 
     expect(result.posts).toHaveLength(1)
-    expect(result.paginas_lidas).toBe(1)
+    expect(result.blocos_lidos).toBe(1)
   })
 
   it('propaga erro de autenticação', async () => {
@@ -176,13 +178,106 @@ describe('fetchPublishedPosts', () => {
     expect(urls[0]).toContain('modified_after=2026-02-01T09%3A30%3A00')
   })
 
-  it('respeita maxPaginas como trava de segurança', async () => {
+  it('respeita maxPosts como trava de segurança', async () => {
     const fetchMock = vi.fn(async () => jsonResponse([rawPost()]))
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await fetchPublishedPosts({ creds: CREDS, perPage: 1, maxPaginas: 3 })
+    const result = await fetchPublishedPosts({ creds: CREDS, perPage: 1, maxPosts: 3 })
 
-    expect(result.paginas_lidas).toBe(3)
+    expect(result.blocos_lidos).toBe(3)
+    expect(result.total_lidos).toBe(3)
+    expect(result.incompleto).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('usa blocos de 5 por padrão', async () => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(String(input))
+        return jsonResponse([])
+      }),
+    )
+
+    await fetchPublishedPosts({ creds: CREDS })
+
+    expect(urls[0]).toContain('per_page=5')
+  })
+})
+
+describe('fetchPublishedPosts — gravação por bloco', () => {
+  it('entrega cada bloco ao callback antes de buscar o próximo', async () => {
+    const chamadas: string[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const page = /[?&]page=(\d+)/.exec(String(input))?.[1]
+      chamadas.push(`fetch:${page}`)
+      if (page === '1') return jsonResponse([rawPost({ id: 1 }), rawPost({ id: 2 })])
+      return jsonResponse([rawPost({ id: 3 })])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const blocos: number[][] = []
+    const result = await fetchPublishedPosts({
+      creds: CREDS,
+      perPage: 2,
+      onBloco: async ({ posts, bloco, total_lidos }) => {
+        chamadas.push(`bloco:${bloco}:${total_lidos}`)
+        blocos.push(posts.map((p) => p.wp_post_id))
+      },
+    })
+
+    // A ordem prova a gravação incremental: bloco 1 é persistido antes da 2ª requisição
+    expect(chamadas).toEqual(['fetch:1', 'bloco:1:2', 'fetch:2', 'bloco:2:3'])
+    expect(blocos).toEqual([[1, 2], [3]])
+    // Com callback nada fica acumulado em memória
+    expect(result.posts).toEqual([])
+    expect(result.total_lidos).toBe(3)
+  })
+
+  it('para no orçamento de tempo e sinaliza incompleto para a continuação', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse([rawPost({ id: 1 }), rawPost({ id: 2 })])),
+    )
+
+    let relogio = 0
+    const result = await fetchPublishedPosts({
+      creds: CREDS,
+      perPage: 2,
+      orcamentoMs: 100,
+      // Cada consulta ao relógio avança 120ms: estoura já no fim do primeiro bloco
+      agora: () => {
+        relogio += 120
+        return relogio
+      },
+      onBloco: async () => {},
+    })
+
+    expect(result.incompleto).toBe(true)
+    expect(result.blocos_lidos).toBe(1)
+    expect(result.ultimo_modified).toBe('2026-02-01T09:30:00Z')
+  })
+
+  it('erro no meio preserva o que já foi gravado pelos blocos anteriores', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const page = /[?&]page=(\d+)/.exec(String(input))?.[1]
+      if (page === '1') return jsonResponse([rawPost({ id: 1 }), rawPost({ id: 2 })])
+      return jsonResponse({ code: 'rest_forbidden' }, 401)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const gravados: number[] = []
+    await expect(
+      fetchPublishedPosts({
+        creds: CREDS,
+        perPage: 2,
+        onBloco: async ({ posts }) => {
+          gravados.push(...posts.map((p) => p.wp_post_id))
+        },
+      }),
+    ).rejects.toThrow(/WordPress 401/)
+
+    expect(gravados).toEqual([1, 2])
   })
 })

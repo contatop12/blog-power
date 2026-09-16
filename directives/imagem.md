@@ -5,7 +5,7 @@ Gerar imagem destacada 1200×630 WebP (<300 KB) com ALT descritivo.
 
 ## Entradas
 - `prompt` de `seo.imagem.prompt`
-- `diretriz_visual` do `perfil_marca`
+- `diretriz_visual` do perfil do cliente (`directives/perfil_cliente.md`)
 - `alt` sugerido pelo Editor
 
 ## Execução
@@ -45,8 +45,23 @@ Gerar imagem destacada 1200×630 WebP (<300 KB) com ALT descritivo.
 4. Job `publicar`: cada `r2://` sobe para a mídia do WP e o HTML é regerado com bloco
    `wp:image` usando o id da mídia. Imagem `r2://` sem upload nunca vira `<img>` quebrado.
 
+### Paralelo com o Revisor
+`imagem` e `revisar` são disparados juntos depois de `validar_links`. Só o job de imagem
+escreve `conteudo_md`; o Revisor grava em `articles.qa`. Sem essa separação, os dois jobs
+sobrescreveriam a mesma coluna sem transação.
+
+O último dos dois a terminar aplica o veredito do Revisor. Ver `directives/revisar.md`.
+
+### Reaproveitamento na rodada 2
+Reprovação no gate §64 faz o Redator reescrever o texto, e as seções mudam. O job de imagem
+então roda com `reaproveitar: true`: reposiciona os objetos já gravados no R2 a partir de
+`dossie.imagens_refs`, sem gerar nada. Sem isso, cada reprovação custaria 3 imagens.
+
+A destacada também é reaproveitada quando já existe.
+
 ### Edge cases
 - Falha na destacada: job falha (post sem Open Graph)
+- `reaproveitar: true` sem refs no dossiê: cai no caminho normal e gera as imagens
 - Falha numa imagem do corpo: registrada em `jobs.payload.resultado.falhas`, artigo segue
 - "Regerar imagem" remove as imagens geradas antes e gera todas de novo (custo: 3 imagens)
 - Retry do job `publicar` pela fila pode duplicar mídia no WordPress (mesmo comportamento da destacada)

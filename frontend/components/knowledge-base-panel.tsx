@@ -15,6 +15,18 @@ import type {
 
 const POLL_MS = 4000
 
+/** `jobs.payload.resultado` dos jobs de corpus e pautas. */
+interface ResultadoJob {
+  inseridos?: number
+  atualizados?: number
+  total_lidos?: number
+  /** Sync dividida por orçamento de tempo: há um job de continuação na fila. */
+  continua?: boolean
+  continuacao_job_id?: string
+  pautas_geradas?: number
+  posts_considerados?: number
+}
+
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
@@ -43,6 +55,8 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
   const [foco, setFoco] = useState('')
 
   const [jobSync, setJobSync] = useState<string | null>(null)
+  // Totais somados entre o job inicial e as continuações da mesma sincronização
+  const acumuladoSync = useRef({ inseridos: 0, atualizados: 0, lidos: 0 })
   const [jobPautas, setJobPautas] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -92,15 +106,35 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
       if (jobId === jobPautas) setJobPautas(null)
 
       if (job.status === 'erro') {
+        acumuladoSync.current = { inseridos: 0, atualizados: 0, lidos: 0 }
         setErro(job.erro ?? 'Job falhou')
       } else {
         setErro(null)
-        const resultado = (job.payload as { resultado?: Record<string, number> } | null)?.resultado
-        if (resultado) {
+        const resultado = (job.payload as { resultado?: ResultadoJob } | null)?.resultado
+        if (resultado && job.tipo === 'sincronizar_corpus') {
+          // A sync grava em blocos de 5 e pode se dividir em vários jobs: soma tudo
+          const acumulado = acumuladoSync.current
+          acumulado.inseridos += Number(resultado.inseridos ?? 0)
+          acumulado.atualizados += Number(resultado.atualizados ?? 0)
+          acumulado.lidos += Number(resultado.total_lidos ?? 0)
+
+          if (resultado.continua && resultado.continuacao_job_id) {
+            // Ainda não acabou: segue o job de continuação em vez de anunciar conclusão
+            setAviso(
+              `Sincronizando em blocos de 5… ${formatarNumero(acumulado.lidos)} artigos lidos até agora.`,
+            )
+            setJobSync(resultado.continuacao_job_id)
+            await recarregar().catch(() => undefined)
+            return
+          }
+
           setAviso(
-            job.tipo === 'sincronizar_corpus'
-              ? `Sincronizado: ${resultado.inseridos ?? 0} novos, ${resultado.atualizados ?? 0} atualizados.`
-              : `${resultado.pautas_geradas ?? 0} pautas geradas a partir de ${resultado.posts_considerados ?? 0} artigos.`,
+            `Sincronizado: ${formatarNumero(acumulado.inseridos)} novos, ${formatarNumero(acumulado.atualizados)} atualizados.`,
+          )
+          acumuladoSync.current = { inseridos: 0, atualizados: 0, lidos: 0 }
+        } else if (resultado) {
+          setAviso(
+            `${resultado.pautas_geradas ?? 0} pautas geradas a partir de ${resultado.posts_considerados ?? 0} artigos.`,
           )
         }
       }
@@ -118,6 +152,7 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
   async function sincronizar(completo: boolean) {
     setErro(null)
     setAviso(null)
+    acumuladoSync.current = { inseridos: 0, atualizados: 0, lidos: 0 }
     try {
       const res = await api.corpus.sync(clientId, { completo, tipos: ['post'] })
       setJobSync(res.job_id)

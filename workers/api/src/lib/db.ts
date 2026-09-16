@@ -13,13 +13,15 @@ import type {
   Job,
   JobStatus,
   JobTipo,
-  PerfilMarca,
+  PerfilCliente,
   PublishArticleInput,
+  QaReport,
+  Dossie,
   SeoJson,
   SeoPlugin,
   WpPostType,
 } from '@publisher-p12/types'
-import { encryptSecret } from '@publisher-p12/execution'
+import { encryptSecret, normalizePerfilCliente } from '@publisher-p12/execution'
 import type { ApiBindings } from '../bindings.js'
 
 function now(): string {
@@ -57,6 +59,8 @@ interface ArticleRow {
   seo: string | null
   geo: string | null
   schema_jsonld: string | null
+  dossie: string | null
+  qa: string | null
   imagem_url: string | null
   imagem_alt: string | null
   wp_post_id: number | null
@@ -103,7 +107,10 @@ function rowToClient(row: ClientRow): Client {
     timezone: row.timezone,
     categoria_padrao_id: row.categoria_padrao_id,
     autor_padrao_id: row.autor_padrao_id,
-    perfil_marca: parseJson<PerfilMarca>(row.perfil_marca),
+    // A coluna é legada; o conteúdo é um PerfilCliente. normalize deriva os campos antigos.
+    perfil_marca: row.perfil_marca
+      ? normalizePerfilCliente(parseJson<PerfilCliente>(row.perfil_marca))
+      : null,
     status_conexao: row.status_conexao,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -121,6 +128,8 @@ function rowToArticle(row: ArticleRow): Article {
     seo: parseJson<SeoJson>(row.seo),
     geo: parseJson<GeoJson>(row.geo),
     schema_jsonld: parseJson<Record<string, unknown>>(row.schema_jsonld),
+    dossie: parseJson<Dossie>(row.dossie),
+    qa: parseJson<QaReport>(row.qa),
     imagem_url: row.imagem_url,
     imagem_alt: row.imagem_alt,
     wp_post_id: row.wp_post_id,

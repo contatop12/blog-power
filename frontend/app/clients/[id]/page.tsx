@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ClientForm } from '@/components/client-form'
+import { ClientProfileForm } from '@/components/client-profile-form'
 import { MuPluginGuide } from '@/components/client-form-guides'
 import { ClientStatusIcon, clientStatusTitle } from '@/components/client-status-icon'
 import { FieldGuide } from '@/components/field-hint'
@@ -24,7 +25,9 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null)
   const [connection, setConnection] = useState<ConnectionCheckResult | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
-  const [tab, setTab] = useState<'dados' | 'base' | 'categorias' | 'materiais'>('dados')
+  const [tab, setTab] = useState<'dados' | 'perfil' | 'base' | 'categorias' | 'materiais'>(
+    'dados',
+  )
   const [testing, setTesting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -68,6 +71,17 @@ export default function ClientDetailPage() {
           onClick={() => setTab('dados')}
         >
           Dados e WordPress
+        </button>
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-medium transition-colors duration-150 ${
+            tab === 'perfil'
+              ? 'border-b-2 border-blue-700 text-blue-700'
+              : 'text-zinc-600 hover:text-blue-700'
+          }`}
+          onClick={() => setTab('perfil')}
+        >
+          Perfil
         </button>
         <button
           type="button"
@@ -210,6 +224,12 @@ export default function ClientDetailPage() {
               setClient(updated)
             }}
           />
+        </div>
+      )}
+
+      {tab === 'perfil' && (
+        <div key="perfil" className="animate-slide-up">
+          <ClientProfileForm clientId={id} />
         </div>
       )}
 
