@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS articles (
     seo             TEXT,
     geo             TEXT,
     schema_jsonld   TEXT,
+    -- Estado compartilhado entre os agentes (migration 008)
+    dossie          TEXT,
+    -- Relatório do Revisor: score §64 e checklist §63 (migration 008)
+    qa              TEXT,
     imagem_url      TEXT,
     imagem_alt      TEXT,
     wp_post_id      INTEGER,
@@ -85,8 +89,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     article_id      TEXT REFERENCES articles(id) ON DELETE CASCADE,
     client_id       TEXT REFERENCES clients(id) ON DELETE CASCADE,
     tipo            TEXT NOT NULL
-                    CHECK(tipo IN ('redigir', 'editar', 'imagem', 'publicar',
-                                   'validar_links', 'sincronizar_corpus', 'sugerir_pautas')),
+                    CHECK(tipo IN ('pesquisar', 'redigir', 'editar', 'imagem', 'revisar',
+                                   'publicar', 'validar_links', 'sincronizar_corpus',
+                                   'sugerir_pautas')),
     status          TEXT NOT NULL DEFAULT 'pendente'
                     CHECK(status IN ('pendente', 'rodando', 'ok', 'erro')),
     payload         TEXT,
@@ -99,6 +104,8 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_article ON jobs(article_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+-- A junção pós-fan-out consulta o job irmão pelo par (article_id, tipo)
+CREATE INDEX IF NOT EXISTS idx_jobs_article_tipo ON jobs(article_id, tipo);
 
 CREATE TABLE IF NOT EXISTS app_settings (
     key         TEXT PRIMARY KEY,
@@ -110,6 +117,9 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('openrouter_model_redator', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_editor', 'anthropic/claude-sonnet-4-5'),
     ('openrouter_model_imagem', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_pesquisador', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_revisor', 'anthropic/claude-sonnet-4-5'),
+    ('openrouter_model_pauteiro', 'anthropic/claude-sonnet-4-5'),
     ('image_provider', 'workers_ai');
 
 CREATE TABLE IF NOT EXISTS client_materials (

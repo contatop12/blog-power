@@ -4,8 +4,11 @@ import { maskSecret, PLAIN_SETTING_KEYS, SECRET_SETTING_KEYS, SETTING_DEFAULTS }
 
 const ALL_KEYS: SettingKey[] = [
   'openrouter_api_key',
+  'openrouter_model_pesquisador',
   'openrouter_model_redator',
   'openrouter_model_editor',
+  'openrouter_model_revisor',
+  'openrouter_model_pauteiro',
   'openrouter_model_imagem',
   'evolution_api_url',
   'evolution_api_key',
@@ -18,8 +21,11 @@ const ALL_KEYS: SettingKey[] = [
 
 const GROUP_MAP: Record<SettingKey, keyof SettingsGroupView> = {
   openrouter_api_key: 'openrouter',
+  openrouter_model_pesquisador: 'openrouter',
   openrouter_model_redator: 'openrouter',
   openrouter_model_editor: 'openrouter',
+  openrouter_model_revisor: 'openrouter',
+  openrouter_model_pauteiro: 'openrouter',
   openrouter_model_imagem: 'openrouter',
   evolution_api_url: 'evolution',
   evolution_api_key: 'evolution',

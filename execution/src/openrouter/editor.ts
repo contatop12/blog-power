@@ -1,4 +1,7 @@
-import type { Briefing, GeoJson, PerfilMarca, SeoJson } from '@publisher-p12/types'
+import type { Briefing, GeoJson, PesquisaDossie, SeoJson } from '@publisher-p12/types'
+import { renderPesquisaParaPrompt } from '../skill/dossie.js'
+import { renderPerfilParaPrompt } from '../skill/perfil.js'
+import { buildSystemPrompt } from '../skill/skill.js'
 import { chatJson } from './client.js'
 
 /** Artigo já publicado, próximo do tema, com o trecho que justifica o link. */
@@ -12,7 +15,10 @@ export interface LinkCandidato {
 export interface EditorInput {
   conteudoMd: string
   briefing: Briefing
-  perfilMarca: PerfilMarca
+  /** PerfilCliente cru; a renderização acontece aqui dentro. */
+  perfil: unknown
+  /** Diagnóstico do Pesquisador (cluster, entidades, freshness). */
+  pesquisa?: PesquisaDossie | null
   clientUrls: Array<{ url: string; titulo: string | null }>
   /** Artigos relacionados do corpus, ranqueados (links contextuais prioritários). */
   linksCandidatos?: LinkCandidato[]
@@ -28,49 +34,49 @@ export interface EditorOutput {
   schema_jsonld: Record<string, unknown>
 }
 
-const SYSTEM_PROMPT = `Você é editor SEO/GEO sênior (padrão gerador-crítico).
-Title 50-60 chars; meta 140-160 chars. Sem promessas de visibilidade em IA.
+const FORMATO = `Retorne JSON com exatamente estas chaves:
+{
+  "conteudo_md": "artigo revisado, já com os links internos inseridos",
+  "seo": {
+    "titulo_seo": "", "meta_description": "", "slug": "", "kw_principal": "",
+    "kws_secundarias": [], "intencao": "", "etapa_funil": "",
+    "links_internos": [{ "url": "", "ancora": "", "posicao": "" }],
+    "links_internos_futuros": [],
+    "link_externo": { "url": "", "fonte": "", "justificativa": "" },
+    "links_externos": [{ "url": "", "fonte": "", "justificativa": "" }],
+    "schema_recomendado": [], "og": { "title": "", "description": "" },
+    "imagem": { "prompt": "", "alt": "" },
+    "imagens_corpo": [{ "secao": "", "prompt": "", "alt": "" }],
+    "canonical": "", "categoria_sugerida": "", "tags_sugeridas": [], "breadcrumb": "",
+    "freshness": "evergreen|semi_evergreen|alta_volatilidade"
+  },
+  "geo": { "estrategia": "", "blocos_autocontidos": [], "canibalizacao": [], "oportunidades": [] },
+  "schema_jsonld": {}
+}
 
-Links internos:
-- Use SOMENTE URLs de links_candidatos ou client_urls. Nunca invente, altere ou encurte URL.
-- Priorize links_candidatos: são artigos já publicados sobre temas próximos. Leia o trecho
-  de cada um para entender o que ele cobre antes de decidir onde linkar.
-- Insira de 3 a 6 links internos no corpo, em Markdown [âncora](url), dentro de uma frase
-  que já trata do assunto do artigo linkado. Se preciso, reescreva levemente a frase.
-- Âncora descritiva de 2 a 6 palavras, com o termo que o artigo linkado cobre.
-  PROIBIDO: "clique aqui", "saiba mais", "neste artigo", URL nua como âncora.
-- No máximo 1 link por URL. Nenhum link em títulos (#, ##, ###) nem no FAQ.
-- Distribua os links ao longo do texto, não concentre na introdução ou conclusão.
-- Liste cada link inserido em seo.links_internos com { url, ancora, posicao }.
-- URLs que ainda não existem vão em links_internos_futuros, nunca no corpo.
-
-Imagens:
-- seo.imagem = imagem destacada { prompt, alt }.
-- seo.imagens_corpo = exatamente 2 imagens de apoio { secao, prompt, alt } para as seções H2
-  que mais ganham com apoio visual. secao = texto EXATO do H2. Nunca FAQ nem conclusão.
-- prompt em inglês, descrevendo cena/objeto concreto (foto editorial ou ilustração),
-  sem pedir texto, números, logotipos ou marcas dentro da imagem.
-- alt em português, descrevendo o que a imagem mostra (não repita a KW de forma forçada).
-- NÃO insira imagens no conteudo_md: o pipeline posiciona as imagens.
-
-Retorne JSON com: conteudo_md, seo, geo, schema_jsonld.`
+geo.oportunidades = de 3 a 10 conteúdos que fortalecem o cluster (Skill §62.11).`
 
 export async function runEditor(input: EditorInput): Promise<EditorOutput> {
-  const userContent = JSON.stringify({
-    conteudo_md: input.conteudoMd,
-    briefing: input.briefing,
-    perfil_marca: input.perfilMarca,
-    links_candidatos: input.linksCandidatos ?? [],
-    client_urls: input.clientUrls,
-    seo_plugin: input.seoPlugin,
-  })
+  const contexto = [
+    renderPesquisaParaPrompt(input.pesquisa ?? null),
+    `# BRIEFING\n${JSON.stringify(input.briefing)}`,
+    `# PLUGIN SEO DO SITE: ${input.seoPlugin}`,
+    `# LINKS CANDIDATOS (artigos publicados, com o trecho que justifica o link)\n${JSON.stringify(input.linksCandidatos ?? [])}`,
+    `# INVENTÁRIO DE URLs DO CLIENTE (única origem permitida de link interno)\n${JSON.stringify(input.clientUrls)}`,
+    `# ARTIGO A EDITAR\n\n${input.conteudoMd}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n---\n\n')
 
   return chatJson<EditorOutput>({
     apiKey: input.apiKey,
     model: input.model,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
+      {
+        role: 'system',
+        content: `${buildSystemPrompt('editor', renderPerfilParaPrompt(input.perfil))}\n\n---\n\n${FORMATO}`,
+      },
+      { role: 'user', content: contexto },
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Editor',

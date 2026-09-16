@@ -1,34 +1,60 @@
-import type { Briefing, PerfilMarca } from '@publisher-p12/types'
+import type { Briefing, PesquisaDossie, QaReport } from '@publisher-p12/types'
+import { renderPesquisaParaPrompt } from '../skill/dossie.js'
+import { renderPerfilParaPrompt } from '../skill/perfil.js'
+import { renderCorrecoesParaPrompt } from '../skill/qa.js'
+import { buildSystemPrompt } from '../skill/skill.js'
 import { chatCompletion } from './client.js'
 
 export interface RedatorInput {
   briefing: Briefing
-  perfilMarca: PerfilMarca
+  /** PerfilCliente cru; a renderização acontece aqui dentro. */
+  perfil: unknown
+  /** Diagnóstico do Pesquisador. Null quando o job de pesquisa falhou ou foi pulado. */
+  pesquisa?: PesquisaDossie | null
+  /** Relatório do Revisor da rodada anterior. Presente só na rodada 2. */
+  qaAnterior?: QaReport | null
+  /** Markdown reprovado, para o Redator corrigir em vez de recomeçar do zero. */
+  conteudoAnterior?: string | null
   urlsRelevantes: Array<{ url: string; titulo: string | null; resumo: string | null }>
   artigosIrmaos: string[]
   apiKey: string
   model?: string
 }
 
-const SYSTEM_PROMPT = `Você é redator técnico-consultivo para blogs B2B.
-Regras: um H1 com KW principal; H2/H3 sem pular níveis; answer capsule 50-100 palavras;
-FAQ com mínimo 5 perguntas; blocos de decisão quando comparativo; CTA com E-E-A-T.
-PROIBIDO: inventar números/estatísticas; inserir qualquer URL ou link.`
+const FORMATO = `Devolva SOMENTE o Markdown do artigo, sem cercas de código, sem comentário e
+sem preâmbulo. Não inclua nenhuma URL nem link: o Editor cuida disso na etapa seguinte.`
 
 export async function runRedator(input: RedatorInput): Promise<string> {
-  const userContent = JSON.stringify({
-    briefing: input.briefing,
-    perfil_marca: input.perfilMarca,
-    urls_relevantes: input.urlsRelevantes,
-    artigos_irmaos: input.artigosIrmaos,
-  })
+  const correcoes = input.qaAnterior ? renderCorrecoesParaPrompt(input.qaAnterior) : ''
+
+  const partes = [
+    renderPesquisaParaPrompt(input.pesquisa ?? null),
+    `# BRIEFING\n${JSON.stringify(input.briefing)}`,
+    input.artigosIrmaos.length > 0
+      ? `# TEMAS VIZINHOS JÁ PUBLICADOS (contexto de cluster, não linkar)\n- ${input.artigosIrmaos.join('\n- ')}`
+      : '',
+    input.urlsRelevantes.length > 0
+      ? `# PÁGINAS DO CLIENTE (contexto; o Editor escolhe os links)\n${JSON.stringify(input.urlsRelevantes)}`
+      : '',
+    correcoes,
+    correcoes && input.conteudoAnterior
+      ? `# VERSÃO REPROVADA (corrija esta versão, não recomece)\n\n${input.conteudoAnterior}`
+      : '',
+  ].filter(Boolean)
+
+  const instrucao = correcoes
+    ? 'Reescreva o artigo aplicando as correções da revisão:'
+    : 'Escreva o artigo em Markdown:'
 
   return chatCompletion({
     apiKey: input.apiKey,
     model: input.model,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `Gere o artigo em Markdown:\n${userContent}` },
+      {
+        role: 'system',
+        content: `${buildSystemPrompt('redator', renderPerfilParaPrompt(input.perfil))}\n\n---\n\n${FORMATO}`,
+      },
+      { role: 'user', content: `${instrucao}\n\n${partes.join('\n\n---\n\n')}` },
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Redator',

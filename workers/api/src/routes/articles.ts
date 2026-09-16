@@ -59,7 +59,9 @@ articles.post('/:id/generate', async (c) => {
   if (!article) return c.json({ error: 'Artigo não encontrado' }, 404)
 
   await updateArticle(c.env.DB, articleId, { status: 'gerando', erro_msg: null })
-  const nextJob = article.conteudo_md?.trim() ? 'editar' : 'redigir'
+  // Texto colado já existe: pula pesquisa e redação, entra direto na edição.
+  // Caso contrário o pipeline começa pelo Pesquisador, que monta o dossiê.
+  const nextJob = article.conteudo_md?.trim() ? 'editar' : 'pesquisar'
   const job = await enqueueJob(c.env, articleId, nextJob)
   return c.json({ job_id: job.id, status: 'enqueued' })
 })

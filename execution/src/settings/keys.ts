@@ -8,6 +8,9 @@ export const PLAIN_SETTING_KEYS = new Set([
   'openrouter_model_redator',
   'openrouter_model_editor',
   'openrouter_model_imagem',
+  'openrouter_model_pesquisador',
+  'openrouter_model_revisor',
+  'openrouter_model_pauteiro',
   'evolution_api_url',
   'evolution_instance',
   'evolution_group_id',
@@ -19,6 +22,9 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   openrouter_model_redator: 'anthropic/claude-sonnet-4-5',
   openrouter_model_editor: 'anthropic/claude-sonnet-4-5',
   openrouter_model_imagem: 'anthropic/claude-sonnet-4-5',
+  openrouter_model_pesquisador: 'anthropic/claude-sonnet-4-5',
+  openrouter_model_revisor: 'anthropic/claude-sonnet-4-5',
+  openrouter_model_pauteiro: 'anthropic/claude-sonnet-4-5',
   image_provider: 'workers_ai',
 }
 

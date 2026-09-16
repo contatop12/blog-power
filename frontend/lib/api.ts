@@ -12,6 +12,8 @@ import type {
   DashboardPayload,
   Job,
   LoginResult,
+  PerfilCliente,
+  PerfilClienteView,
   UpdateWpCategoryInput,
   WpAuthorOption,
   WpCategoryOption,
@@ -87,6 +89,12 @@ export const api = {
       apiFetch<Client>(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     testConnection: (id: string) =>
       apiFetch<ConnectionCheckResult>(`/clients/${id}/test-connection`, { method: 'POST' }),
+    perfil: (id: string) => apiFetch<PerfilClienteView>(`/clients/${id}/perfil`),
+    savePerfil: (id: string, perfil: PerfilCliente) =>
+      apiFetch<PerfilClienteView>(`/clients/${id}/perfil`, {
+        method: 'PUT',
+        body: JSON.stringify(perfil),
+      }),
     syncSitemap: (id: string) =>
       apiFetch<{ count: number; synced: number; duration_ms?: number; sitemaps_fetched?: number }>(
         `/clients/${id}/sync-sitemap`,

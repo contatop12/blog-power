@@ -22,9 +22,11 @@ export type ArticleStatus =
   | 'erro'
 
 export type JobTipo =
+  | 'pesquisar'
   | 'redigir'
   | 'editar'
   | 'imagem'
+  | 'revisar'
   | 'publicar'
   | 'validar_links'
   | 'sincronizar_corpus'
@@ -32,6 +34,12 @@ export type JobTipo =
 
 /** Jobs de corpus/pautas rodam no escopo do cliente, sem artigo associado. */
 export const CLIENT_SCOPED_JOBS: JobTipo[] = ['sincronizar_corpus', 'sugerir_pautas']
+
+/**
+ * Jobs disparados juntos após `validar_links`. O último a terminar consulta o irmão e só
+ * então aplica o veredito do Revisor — não existe barreira de sincronização no Queue.
+ */
+export const JOBS_PARALELOS: JobTipo[] = ['imagem', 'revisar']
 
 export type JobStatus = 'pendente' | 'rodando' | 'ok' | 'erro'
 
@@ -42,6 +50,11 @@ export interface ServicoMarca {
   url: string
 }
 
+/**
+ * Forma legada do perfil (8 campos). Continua sendo o que os agentes leem como fallback.
+ * `normalizePerfilCliente` deriva todos estes campos a partir do perfil completo, então
+ * nenhum consumidor antigo quebra quando o cliente preenche só os campos novos.
+ */
 export interface PerfilMarca {
   descricao_institucional: string
   segmentos_atendidos: string[]
@@ -51,6 +64,140 @@ export interface PerfilMarca {
   proibicoes: string[]
   cta_padrao: string
   diretriz_visual: string
+}
+
+/** Profissional real do cliente. Skill §36: nunca inventar especialista. */
+export interface ProfissionalResponsavel {
+  nome: string
+  funcao: string
+  especialidade: string
+  /** Página de autor no site, quando existir. Alimenta autoria/E-E-A-T. */
+  url_autor?: string
+}
+
+/** Página do site do cliente citada no perfil. */
+export interface PaginaRef {
+  url: string
+  titulo: string
+}
+
+/**
+ * Perfil completo do cliente — as 32 perguntas de briefing + `diretriz_visual`.
+ * Superset de PerfilMarca: os campos legados seguem declarados e são derivados.
+ * Persistido como JSON em `clients.perfil_marca`.
+ */
+export interface PerfilCliente extends Partial<PerfilMarca> {
+  // --- Identidade e marca ---
+  nome_empresa: string
+  site: string
+  posicionamento: string
+  tom_de_voz: string
+  /** Direção visual para o gerador de imagem. Não consta da lista de briefing, mas
+   *  `directives/imagem.md` depende dele. */
+  diretriz_visual: string
+
+  // --- Oferta ---
+  servicos: ServicoMarca[]
+  produtos: string[]
+  servicos_prioritarios: string[]
+  especialidades: string[]
+  /** Diferenciais alegados pela empresa (posicionamento). */
+  diferenciais: string[]
+  ticket_medio: string
+
+  // --- Mercado ---
+  publico_alvo: string
+  icp: string
+  area_geografica: string
+  cidades_prioritarias: string[]
+  concorrentes: string[]
+
+  // --- Autoridade (E-E-A-T) ---
+  profissionais_responsaveis: ProfissionalResponsavel[]
+  certificacoes: string[]
+  /** Diferenciais comprováveis. Só estes viram `provas_eeat` (Skill §21/§22). */
+  diferenciais_reais: string[]
+  dados_proprietarios: string[]
+  cases: string[]
+
+  // --- Site e conteúdo ---
+  paginas_importantes: PaginaRef[]
+  paginas_servicos: PaginaRef[]
+  /** Complementar. A fonte primária de artigos publicados é o corpus `client_posts`. */
+  artigos_publicados: PaginaRef[]
+
+  // --- Comercial ---
+  objetivos_comerciais: string[]
+  ctas_permitidos: string[]
+  formas_contato: string[]
+  crm_qualificacao: string
+
+  // --- Insights do comercial ---
+  perguntas_frequentes: string[]
+  objecoes_comerciais: string[]
+
+  // --- Compliance ---
+  restricoes_legais: string[]
+  restricoes_compliance: string[]
+  informacoes_proibidas: string[]
+}
+
+export type PerfilBloco =
+  | 'identidade'
+  | 'oferta'
+  | 'mercado'
+  | 'autoridade'
+  | 'conteudo'
+  | 'comercial'
+  | 'insights'
+  | 'compliance'
+
+export type PerfilCampoTipo =
+  /** Uma linha. */
+  | 'texto'
+  /** Várias linhas. */
+  | 'texto_longo'
+  /** Lista de strings, um item por linha. */
+  | 'lista'
+  /** Lista de PaginaRef: { url, titulo }. */
+  | 'lista_url'
+  /** Lista de ServicoMarca: { nome, url }. */
+  | 'lista_servico'
+  /** Lista de ProfissionalResponsavel. */
+  | 'lista_pessoa'
+
+/** Metadado de um campo do perfil. Fonte única para UI, validação e completude. */
+export interface PerfilCampoMeta {
+  chave: keyof PerfilCliente
+  label: string
+  bloco: PerfilBloco
+  tipo: PerfilCampoTipo
+  /** Campos exigidos pelo pipeline antes de redigir. */
+  obrigatorio: boolean
+  dica: string
+  placeholder?: string
+}
+
+export interface PerfilBlocoCompletude {
+  bloco: PerfilBloco
+  preenchidos: number
+  total: number
+}
+
+export interface PerfilCompletude {
+  /** 0 a 100, considerando todos os campos. */
+  percentual: number
+  preenchidos: number
+  total: number
+  blocos: PerfilBlocoCompletude[]
+  /** Campos obrigatórios ainda vazios. Vazio = pipeline liberado. */
+  faltando_obrigatorios: Array<keyof PerfilCliente>
+}
+
+export interface PerfilClienteView {
+  client_id: string
+  perfil: PerfilCliente
+  completude: PerfilCompletude
 }
 
 export interface Briefing {
@@ -113,10 +260,21 @@ export interface SeoJson {
   links_internos: LinkInterno[]
   links_internos_futuros: string[]
   link_externo?: LinkExterno
+  /** Skill §12/§13: fontes que sustentam as afirmações factuais do artigo. */
+  links_externos?: LinkExterno[]
   schema_recomendado: string[]
   og: OgMeta
   imagem: ImagemSeo
   imagens_corpo?: ImagemCorpo[]
+
+  // --- Skill §31: campos SEO complementares ---
+  canonical?: string
+  categoria_sugerida?: string
+  tags_sugeridas?: string[]
+  /** Ex.: "Home > Blog > Aparelhos Auditivos > Como escolher". */
+  breadcrumb?: string
+  /** Skill §49: define a cadência de revisão do artigo. */
+  freshness?: Freshness
 }
 
 export interface GeoJson {
@@ -124,6 +282,138 @@ export interface GeoJson {
   blocos_autocontidos: string[]
   canibalizacao: string[]
   oportunidades: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Dossiê — contrato de handoff entre os agentes (articles.dossie)
+// ---------------------------------------------------------------------------
+
+export type IntencaoBusca =
+  | 'informacional'
+  | 'comercial'
+  | 'transacional'
+  | 'navegacional'
+  | 'local'
+  | 'comparativa'
+  | 'investigativa'
+  | 'problema_solucao'
+
+/** Skill §3: estágio de consciência do usuário. Define profundidade e carga comercial. */
+export type EstagioConsciencia =
+  | 'desconhece_problema'
+  | 'reconhece_problema'
+  | 'procura_solucoes'
+  | 'compara_alternativas'
+  | 'escolhe_fornecedor'
+  | 'pronto_para_contratar'
+
+export type RiscoCanibalizacao = 'alto' | 'medio' | 'baixo'
+
+export type RecomendacaoCanibalizacao =
+  | 'atualizar'
+  | 'consolidar'
+  | 'redirecionar'
+  | 'mudar_intencao'
+  | 'mudar_palavra_chave'
+  | 'cluster_complementar'
+  | 'seguir'
+
+/** Skill §46: artigo do próprio domínio que disputa a mesma intenção. */
+export interface CanibalizacaoItem {
+  url: string
+  titulo: string
+  risco: RiscoCanibalizacao
+  recomendacao: RecomendacaoCanibalizacao
+  motivo: string
+}
+
+/** Saída do Pesquisador (Skill §3-§8, §46). */
+export interface PesquisaDossie {
+  intencao: IntencaoBusca
+  estagio_consciencia: EstagioConsciencia
+  /** Skill §7: entidades que explicam o assunto, não termos para manipular ranking. */
+  entidades: string[]
+  kws_relacionadas: string[]
+  perguntas: string[]
+  cluster: string
+  pagina_pilar: string
+  canibalizacao: CanibalizacaoItem[]
+  /** Skill §10: trechos que devem fazer sentido extraídos isoladamente. */
+  blocos_citaveis: string[]
+  /** Skill §49: evergreen | semi_evergreen | alta_volatilidade. */
+  freshness: Freshness
+  /** Por que este artigo merece existir em vez de atualizar um já publicado. */
+  justificativa: string
+}
+
+export type Freshness = 'evergreen' | 'semi_evergreen' | 'alta_volatilidade'
+
+/** Imagem já gravada no R2 — permite reposicionar sem gerar de novo na rodada 2. */
+export interface ImagemRef {
+  secao: string
+  r2_key: string
+  alt: string
+}
+
+/**
+ * Estado compartilhado entre os agentes. Cada agente lê o dossiê inteiro e escreve
+ * apenas a sua fatia.
+ */
+export interface Dossie {
+  /** Versão da Skill que produziu este artigo. */
+  skill_version: string
+  /** 1 = primeira passada. 2 = rodada de correção após reprovação no gate §64. */
+  rodada: number
+  pesquisa: PesquisaDossie | null
+  imagens_refs: ImagemRef[]
+  /** Skill §2: o que faltou no perfil e foi sinalizado em vez de inventado. */
+  pendencias: string[]
+}
+
+// ---------------------------------------------------------------------------
+// QA — relatório do Revisor (articles.qa)
+// ---------------------------------------------------------------------------
+
+/** Skill §64. Nenhuma categoria pode ficar abaixo de 8. */
+export interface QaScore {
+  intencao_busca: number
+  profundidade: number
+  originalidade: number
+  seo: number
+  geo_aeo: number
+  eeat: number
+  ux: number
+  conversao: number
+  atualidade: number
+  qualidade_fontes: number
+  naturalidade: number
+}
+
+export const QA_SCORE_MINIMO = 8
+
+export type QaVeredito = 'aprovado' | 'reprovado'
+
+/** Item do checklist §63 que falhou, com a correção que o Redator deve aplicar. */
+export interface QaCorrecao {
+  categoria: keyof QaScore
+  problema: string
+  correcao: string
+  /** Trecho do artigo onde o problema aparece, quando localizável. */
+  trecho?: string
+}
+
+export interface QaReport {
+  veredito: QaVeredito
+  score: QaScore
+  /** Categorias abaixo de QA_SCORE_MINIMO. */
+  reprovadas: Array<keyof QaScore>
+  correcoes: QaCorrecao[]
+  /** Skill §12/§57: afirmações sem fonte que sustente. */
+  fatos_sem_fonte: string[]
+  /** Skill §50: o artigo poderia ter sido escrito sem conhecer este cliente? */
+  diferenciacao_ia: string
+  rodada: number
+  avaliado_em: string
 }
 
 export interface Client {
@@ -137,7 +427,8 @@ export interface Client {
   timezone: string
   categoria_padrao_id: number | null
   autor_padrao_id: number | null
-  perfil_marca: PerfilMarca | null
+  /** Guarda o PerfilCliente completo. O nome da coluna é legado. */
+  perfil_marca: PerfilCliente | null
   status_conexao: ConnectionStatus
   created_at: string
   updated_at: string
@@ -167,6 +458,10 @@ export interface Article {
   seo: SeoJson | null
   geo: GeoJson | null
   schema_jsonld: Record<string, unknown> | null
+  /** Estado compartilhado entre os agentes (pesquisa, rodada, refs de imagem, pendências). */
+  dossie: Dossie | null
+  /** Relatório do Revisor: score §64, checklist §63 e correções da rodada seguinte. */
+  qa: QaReport | null
   imagem_url: string | null
   imagem_alt: string | null
   wp_post_id: number | null
@@ -234,7 +529,7 @@ export interface CreateClientInput {
   timezone?: string
   categoria_padrao_id?: number | null
   autor_padrao_id?: number | null
-  perfil_marca?: PerfilMarca | null
+  perfil_marca?: PerfilCliente | null
 }
 
 export interface CreateArticleInput {
@@ -305,6 +600,9 @@ export type SettingKey =
   | 'openrouter_model_redator'
   | 'openrouter_model_editor'
   | 'openrouter_model_imagem'
+  | 'openrouter_model_pesquisador'
+  | 'openrouter_model_revisor'
+  | 'openrouter_model_pauteiro'
   | 'evolution_api_url'
   | 'evolution_api_key'
   | 'evolution_instance'
@@ -484,7 +782,10 @@ export interface SyncCorpusResult {
   total_lidos: number
   inseridos: number
   atualizados: number
-  paginas_lidas: number
+  /** Blocos de leitura consumidos da REST API (5 posts por bloco). */
+  blocos_lidos: number
+  /** True quando a sync parou por orçamento e uma continuação foi enfileirada. */
+  continua: boolean
   tipos: WpPostType[]
 }
 
@@ -493,6 +794,12 @@ export interface SyncCorpusInput {
   completo?: boolean
   /** Padrão: ['post']. */
   tipos?: WpPostType[]
+  /**
+   * Marca um job criado pelo próprio pipeline para retomar uma sync que não coube no
+   * orçamento de tempo. Continuação sempre parte do MAX(wp_modified) já gravado, mesmo
+   * quando a chamada original pediu `completo`.
+   */
+  continuacao?: boolean
 }
 
 export type ArticleIdeaStatus = 'nova' | 'descartada' | 'usada'
@@ -541,3 +848,8 @@ export interface SuggestPautasResult {
   posts_considerados: number
   corpus_truncado: boolean
 }
+
+// Metadados dos campos do perfil do cliente (fonte única para UI, API e prompts).
+// Sem extensão de propósito: este pacote é consumido como fonte TS pelo webpack do Next,
+// que não mapeia `.js` para `.ts`. esbuild (wrangler), Vite e tsc (bundler) resolvem igual.
+export * from './perfil-campos'

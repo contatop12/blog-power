@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { PublishPanel } from '@/components/publish-panel'
+import { QaReportPanel } from '@/components/qa-report-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
@@ -86,6 +87,24 @@ export default function ReviewPage() {
                 ))}
               </ul>
             </div>
+            {article.dossie?.pesquisa && (
+              <div>
+                <p className="font-medium">Diagnóstico do Pesquisador</p>
+                <p className="text-xs text-zinc-500">
+                  {article.dossie.pesquisa.intencao} · {article.dossie.pesquisa.freshness}
+                  {article.dossie.pesquisa.cluster
+                    ? ` · cluster: ${article.dossie.pesquisa.cluster}`
+                    : ''}
+                </p>
+                {article.dossie.pesquisa.canibalizacao
+                  .filter((c) => c.recomendacao !== 'seguir')
+                  .map((c) => (
+                    <p key={c.url} className="mt-1 text-xs text-amber-700">
+                      Canibalização ({c.risco}): {c.titulo || c.url} → {c.recomendacao}
+                    </p>
+                  ))}
+              </div>
+            )}
             {article.imagem_url && (
               <div>
                 <p className="font-medium">Imagem destacada</p>
@@ -102,6 +121,8 @@ export default function ReviewPage() {
           </div>
         </Card>
       </div>
+
+      <QaReportPanel qa={article.qa} dossie={article.dossie} />
 
       <PublishPanel
         articleId={id}
