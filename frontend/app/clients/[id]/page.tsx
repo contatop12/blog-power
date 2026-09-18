@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ClientForm } from '@/components/client-form'
 import { ClientProfileForm } from '@/components/client-profile-form'
@@ -17,17 +17,25 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { ClientPageSkeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { api } from '@/lib/api'
+import { PERFIL_CAMPOS, calcularCompletudeLocal, perfilVazio } from '@/lib/perfil-cliente'
 import type { Client, ConnectionCheckResult } from '@publisher-p12/types'
+
+const ABAS = ['dados', 'perfil', 'base', 'categorias', 'materiais'] as const
+type Aba = (typeof ABAS)[number]
+
+/** `?tab=perfil` abre direto na aba; valor desconhecido cai em "dados". */
+function abaInicial(valor: string | null): Aba {
+  return ABAS.includes(valor as Aba) ? (valor as Aba) : 'dados'
+}
 
 export default function ClientDetailPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const id = params.id as string
   const [client, setClient] = useState<Client | null>(null)
   const [connection, setConnection] = useState<ConnectionCheckResult | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
-  const [tab, setTab] = useState<'dados' | 'perfil' | 'base' | 'categorias' | 'materiais'>(
-    'dados',
-  )
+  const [tab, setTab] = useState<Aba>(() => abaInicial(searchParams.get('tab')))
   const [testing, setTesting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -39,6 +47,12 @@ export default function ClientDetailPage() {
   if (!client) {
     return <ClientPageSkeleton />
   }
+
+  const faltandoPerfil = PERFIL_CAMPOS.filter((c) =>
+    calcularCompletudeLocal(client.perfil_marca ?? perfilVazio()).faltando_obrigatorios.includes(
+      c.chave,
+    ),
+  ).map((c) => c.label)
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in space-y-6">
@@ -61,6 +75,18 @@ export default function ClientDetailPage() {
           </Link>
         </div>
       </div>
+
+      {tab !== 'perfil' && faltandoPerfil.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setTab('perfil')}
+          className="w-full animate-fade-in rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-950 transition-colors duration-150 hover:bg-amber-100"
+        >
+          <strong>Perfil do cliente incompleto.</strong> Os artigos não são gerados sem:{' '}
+          {faltandoPerfil.join(', ')}.{' '}
+          <span className="font-medium text-blue-700 underline">Preencher agora →</span>
+        </button>
+      )}
 
       <div className="flex gap-2 border-b border-zinc-200">
         <button
@@ -229,7 +255,12 @@ export default function ClientDetailPage() {
 
       {tab === 'perfil' && (
         <div key="perfil" className="animate-slide-up">
-          <ClientProfileForm clientId={id} />
+          <ClientProfileForm
+            clientId={id}
+            onSaved={(perfil) =>
+              setClient((atual) => (atual ? { ...atual, perfil_marca: perfil } : atual))
+            }
+          />
         </div>
       )}
 

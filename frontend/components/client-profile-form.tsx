@@ -36,9 +36,11 @@ const linhaClass =
 
 interface ClientProfileFormProps {
   clientId: string
+  /** Avisa a página que o perfil mudou (ex.: para esconder o aviso de incompleto). */
+  onSaved?: (perfil: PerfilCliente) => void
 }
 
-export function ClientProfileForm({ clientId }: ClientProfileFormProps) {
+export function ClientProfileForm({ clientId, onSaved }: ClientProfileFormProps) {
   const [perfil, setPerfil] = useState<PerfilCliente>(perfilVazio)
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
@@ -85,6 +87,7 @@ export function ClientProfileForm({ clientId }: ClientProfileFormProps) {
       const view = await api.clients.savePerfil(clientId, limparListasEstruturadas(perfil))
       setPerfil(view.perfil)
       setSalvoEm(new Date().toLocaleTimeString('pt-BR'))
+      onSaved?.(view.perfil)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao salvar o perfil')
     } finally {
