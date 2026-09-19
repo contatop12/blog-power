@@ -18,7 +18,7 @@
     "build:frontend": "npm run build -w frontend",
     "cf:build": "npm run cf:build -w frontend",
     "cf:deploy:pipeline": "node scripts/cf-with-env.mjs npx wrangler deploy --config workers/pipeline/wrangler.jsonc",
-    "cf:deploy:api": "node scripts/cf-with-env.mjs npx wrangler deploy --config workers/api/wrangler.jsonc",
+    "cf:deploy:api": "node scripts/cf-with-env.mjs npx wrangler deploy --config wrangler.jsonc",
     "cf:deploy:frontend": "npm run deploy -w frontend",
     "cf:deploy:workers": "npm run cf:deploy:pipeline && npm run cf:deploy:api",
     "deploy": "node scripts/ci-deploy.mjs",

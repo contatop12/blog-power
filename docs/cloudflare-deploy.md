@@ -55,3 +55,19 @@ npm run cf:deploy:frontend
 ```
 
 Requer `CLOUDFLARE_API_TOKEN` no `.env` (script `cf-with-env.mjs`).
+
+### Duas configs para o mesmo worker `blog-power`
+
+| Arquivo | `ENVIRONMENT` | Uso |
+|---|---|---|
+| `wrangler.jsonc` (raiz) | `production` | deploy: CI e `npm run cf:deploy:api` |
+| `workers/api/wrangler.jsonc` | `development` | só `npm run dev:api` e comandos `cf:d1:*` |
+
+**Nunca publique com `workers/api/wrangler.jsonc`.** O nome do worker é o mesmo de produção e,
+com `ENVIRONMENT: development`, o CORS responde `origin || '*'`: a API passa a aceitar
+requisições de qualquer site. Até 19/09/2026 o `cf:deploy:api` usava esse arquivo.
+
+### Pipeline e frontend não têm CI
+Só a API é publicada automaticamente no merge para `main`. Pipeline e frontend precisam de
+`npm run cf:deploy:pipeline` e do deploy do frontend a cada mudança — sem isso a API nova
+pode enfileirar jobs que o pipeline antigo não conhece.
