@@ -1,6 +1,9 @@
 {
   "$schema": "../../../node_modules/wrangler/config-schema.json",
-  "name": "blog-power",
+  // Config de DESENVOLVIMENTO (dev:api e comandos cf:d1:*). Produção usa o wrangler.jsonc da raiz.
+  // Nome diferente de propósito: um `wrangler deploy` acidental com este arquivo cria um worker
+  // separado em vez de publicar ENVIRONMENT=development (CORS aberto) no worker de produção.
+  "name": "blog-power-dev",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-01",
   "compatibility_flags": ["nodejs_compat_v2"],
