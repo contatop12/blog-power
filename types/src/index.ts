@@ -695,6 +695,11 @@ export interface DashboardServiceError {
   titulo: string
   detalhe: string | null
   updated_at: string
+  /**
+   * Quando uma execução posterior do mesmo tipo, no mesmo artigo ou cliente, terminou `ok`.
+   * Null = erro ainda pendente. O erro continua listado como histórico, marcado como resolvido.
+   */
+  resolvido_em?: string | null
 }
 
 export interface DashboardClientRow {

@@ -605,7 +605,14 @@ export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
 
   const { results: jobErrors } = await db
     .prepare(
-      `SELECT j.id, j.article_id, j.tipo, j.erro, j.finished_at, j.created_at, a.client_id, a.briefing
+      // Jobs de escopo cliente (corpus, pautas) não têm artigo: o cliente vem de jobs.client_id.
+      // resolvido_em = primeira execução posterior do mesmo tipo, no mesmo escopo, que deu ok.
+      `SELECT j.id, j.article_id, j.tipo, j.erro, j.finished_at, j.created_at,
+              COALESCE(j.client_id, a.client_id) AS client_id, a.briefing,
+              (SELECT MIN(k.finished_at) FROM jobs k
+                WHERE k.tipo = j.tipo AND k.status = 'ok' AND k.created_at > j.created_at
+                  AND ((j.article_id IS NOT NULL AND k.article_id = j.article_id)
+                    OR (j.article_id IS NULL AND k.client_id = j.client_id))) AS resolvido_em
        FROM jobs j
        LEFT JOIN articles a ON a.id = j.article_id
        WHERE j.status = 'erro'
@@ -614,13 +621,14 @@ export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
     )
     .all<{
       id: string
-      article_id: string
+      article_id: string | null
       tipo: JobTipo
       erro: string | null
       finished_at: string | null
       created_at: string
       client_id: string | null
       briefing: string | null
+      resolvido_em: string | null
     }>()
 
   for (const j of jobErrors ?? []) {
@@ -630,11 +638,17 @@ export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
       tipo: 'job',
       client_id: j.client_id,
       client_nome: client?.nome ?? null,
-      titulo: `Job ${j.tipo} — ${temaFromBriefing(j.briefing)}`,
+      titulo: j.article_id
+        ? `Job ${j.tipo} — ${temaFromBriefing(j.briefing)}`
+        : `Job ${j.tipo} — base do cliente`,
       detalhe: j.erro,
       updated_at: j.finished_at ?? j.created_at,
+      resolvido_em: j.resolvido_em,
     })
   }
+
+  // Pendentes primeiro; resolvidos ficam abaixo como histórico
+  erros_servicos.sort((x, y) => Number(Boolean(x.resolvido_em)) - Number(Boolean(y.resolvido_em)))
 
   const clientes = clients.map((c) => {
     const own = articles.filter((a) => a.client_id === c.id)
@@ -664,7 +678,8 @@ export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
       agendados: agendados.length,
       em_andamento: em_andamento.length,
       erros_publicacao: errosPublicacaoAll.length,
-      erros_servicos: erros_servicos.length,
+      // KPI conta só o que ainda precisa de ação
+      erros_servicos: erros_servicos.filter((e) => !e.resolvido_em).length,
     },
     artigos_publicados,
     erros_publicacao,

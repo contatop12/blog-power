@@ -273,11 +273,20 @@ export default function HomePage() {
               <EmptyRow colSpan={5} text="Nenhum erro de serviço registrado." />
             ) : (
               data.erros_servicos.map((row) => (
-                <tr key={row.id} className="hover:bg-blue-50/40">
+                <tr
+                  key={row.id}
+                  className={`hover:bg-blue-50/40 ${row.resolvido_em ? 'opacity-70' : ''}`}
+                >
                   <td className="px-5 py-3">
-                    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                      {row.tipo === 'conexao_wp' ? 'WordPress' : 'Job'}
-                    </span>
+                    {row.resolvido_em ? (
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                        Resolvido
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                        {row.tipo === 'conexao_wp' ? 'WordPress' : 'Job'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-slate-600">
                     {row.client_id ? (
@@ -291,7 +300,14 @@ export default function HomePage() {
                       '—'
                     )}
                   </td>
-                  <td className="px-5 py-3 font-medium text-slate-900">{row.titulo}</td>
+                  <td className="px-5 py-3 font-medium text-slate-900">
+                    {row.titulo}
+                    {row.resolvido_em && (
+                      <span className="mt-0.5 block text-xs font-normal text-emerald-700">
+                        Corrigido: a execução seguinte deu certo em {formatDate(row.resolvido_em)}
+                      </span>
+                    )}
+                  </td>
                   <td className="max-w-sm truncate px-5 py-3 text-slate-600" title={row.detalhe ?? ''}>
                     {row.detalhe ?? '—'}
                   </td>
