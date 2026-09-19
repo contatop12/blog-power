@@ -56,16 +56,18 @@ npm run cf:deploy:frontend
 
 Requer `CLOUDFLARE_API_TOKEN` no `.env` (script `cf-with-env.mjs`).
 
-### Duas configs para o mesmo worker `blog-power`
+### Duas configs da API
 
-| Arquivo | `ENVIRONMENT` | Uso |
-|---|---|---|
-| `wrangler.jsonc` (raiz) | `production` | deploy: CI e `npm run cf:deploy:api` |
-| `workers/api/wrangler.jsonc` | `development` | só `npm run dev:api` e comandos `cf:d1:*` |
+| Arquivo | Worker | `ENVIRONMENT` | Uso |
+|---|---|---|---|
+| `wrangler.jsonc` (raiz) | `blog-power` | `production` | deploy: CI e `npm run cf:deploy:api` |
+| `workers/api/wrangler.jsonc` | `blog-power-dev` | `development` | só `npm run dev:api` e comandos `cf:d1:*` |
 
-**Nunca publique com `workers/api/wrangler.jsonc`.** O nome do worker é o mesmo de produção e,
-com `ENVIRONMENT: development`, o CORS responde `origin || '*'`: a API passa a aceitar
-requisições de qualquer site. Até 19/09/2026 o `cf:deploy:api` usava esse arquivo.
+**Nunca publique a API com `workers/api/wrangler.jsonc`.** Com `ENVIRONMENT: development`, o
+CORS responde `origin || '*'` e a API aceita requisições de qualquer site. Até 19/09/2026 esse
+arquivo tinha o mesmo nome do worker de produção e o `cf:deploy:api` publicava com ele. O nome
+agora é `blog-power-dev`: um deploy acidental cria um worker separado em vez de sobrescrever
+produção.
 
 ### Pipeline e frontend não têm CI
 Só a API é publicada automaticamente no merge para `main`. Pipeline e frontend precisam de
