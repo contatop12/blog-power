@@ -7,7 +7,7 @@ interface WpUserMe {
   capabilities?: Record<string, boolean>
 }
 
-interface WpTypeSchema {
+interface WpRouteOptions {
   schema?: {
     properties?: {
       meta?: {
@@ -59,11 +59,13 @@ async function userCanEditPosts(creds: WordPressCredentials): Promise<boolean> {
   }
 }
 
+// O schema com os meta fields vem do OPTIONS da rota da coleção;
+// GET /wp/v2/types/{type} devolve só o objeto do tipo, sem `schema`.
 async function muPluginInstalled(creds: WordPressCredentials): Promise<boolean> {
-  for (const type of ['post', 'page'] as const) {
+  for (const route of ['posts', 'pages'] as const) {
     try {
-      const wpType = await wpFetch<WpTypeSchema>(creds, `/wp/v2/types/${type}?context=edit`)
-      const meta = wpType.schema?.properties?.meta?.properties
+      const options = await wpFetch<WpRouteOptions>(creds, `/wp/v2/${route}`, { method: 'OPTIONS' })
+      const meta = options.schema?.properties?.meta?.properties
       if (meta?.p12_schema_jsonld) return true
     } catch {
       // tenta próximo tipo
