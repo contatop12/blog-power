@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { Spinner } from '@/components/ui/spinner'
 import { isAuthenticated } from '@/lib/auth'
 
 const PUBLIC = ['/login']
@@ -26,8 +27,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
-        Carregando...
+      <div className="flex min-h-dvh items-center justify-center gap-2.5 text-sm text-muted">
+        <Spinner className="text-brand" />
+        Carregando…
       </div>
     )
   }

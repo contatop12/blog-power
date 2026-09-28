@@ -2,103 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tokens de cor como canais RGB (usados pelo tailwind.config via rgb(var() / alpha)).
+ * Cores das etapas do pipeline ficam em lib/status.ts (paletas violet/amber/emerald/red + brand).
+ */
 :root {
-  --ink: #0b1f3a;
-  --paper: #ffffff;
-  --paper-elevated: #ffffff;
-  --blue: #1d4ed8;
-  --blue-hover: #1e40af;
-  --blue-soft: #eff6ff;
-  --blue-border: #bfdbfe;
-  --mist: #e2e8f0;
-  --text-muted: #475569;
-  --danger: #b91c1c;
-  --success: #047857;
-  --radius: 10px;
-  --shadow-soft: 0 8px 28px rgba(11, 31, 58, 0.08);
+  --ink: 14 27 61; /* #0E1B3D texto principal */
+  --muted: 84 97 128; /* #546180 texto secundário */
+  --subtle: 134 146 173; /* #8692AD terciário, placeholders */
+  --canvas: 244 246 251; /* #F4F6FB fundo do app */
+  --surface: 255 255 255; /* painéis */
+  --line: 227 232 242; /* #E3E8F2 bordas */
+  --line-strong: 203 211 227; /* #CBD3E3 bordas de controles */
+  --night: 11 21 51; /* #0B1533 sidebar */
+  --night-soft: 24 37 77; /* #18254D hover na sidebar */
+  --brand: 36 81 245; /* #2451F5 cobalto */
+  --brand-strong: 26 63 214; /* #1A3FD6 */
+  --brand-soft: 237 241 255; /* #EDF1FF */
 }
 
-body {
-  @apply antialiased;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-}
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 
-h1, h2, h3, .font-display {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  body {
+    @apply bg-canvas font-sans text-[15px] leading-relaxed text-ink antialiased;
+    font-feature-settings: 'ss01' on;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-ink;
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.18);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
-  .card-elevated {
-    background: var(--paper-elevated);
-    border: 1px solid var(--mist);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .btn-primary {
-    @apply inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white transition-colors;
-    background: var(--blue);
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: var(--blue-hover);
-  }
-  .btn-primary:disabled {
-    @apply cursor-not-allowed opacity-50;
-  }
-
-  .btn-ghost {
-    @apply inline-flex h-11 items-center justify-center rounded-lg border px-5 text-sm font-medium transition-colors;
-    border-color: var(--blue-border);
-    color: var(--blue);
-    background: var(--paper-elevated);
-  }
-  .btn-ghost:hover:not(:disabled) {
-    background: var(--blue-soft);
-  }
-
+  /* Formulários — use em qualquer input/select/textarea */
   .field-label {
-    @apply mb-1 block text-sm font-medium;
-    color: var(--text-muted);
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+
+  .field-help {
+    @apply mt-1.5 block text-xs leading-snug text-muted;
   }
 
   .field-input {
-    @apply w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-shadow;
-    border-color: var(--mist);
-    background: var(--paper-elevated);
-    color: var(--ink);
+    @apply w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-[0_1px_0_rgb(14_27_61/0.03)] transition-[border-color,box-shadow] duration-150 placeholder:text-subtle;
+  }
+  .field-input:hover:not(:disabled):not(:focus) {
+    @apply border-subtle;
   }
   .field-input:focus {
-    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.2);
-    border-color: var(--blue);
+    @apply border-brand outline-none;
+    box-shadow: 0 0 0 3px rgb(var(--brand) / 0.15);
+  }
+  .field-input:disabled {
+    @apply cursor-not-allowed bg-canvas text-muted;
+  }
+  select.field-input {
+    @apply appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23546180' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.65rem center;
   }
 
-  .badge-ok {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
-    background: #ecfdf5;
-    color: var(--success);
+  /* Tabelas de dados */
+  .data-table {
+    @apply min-w-full text-left text-sm;
+  }
+  .data-table thead th {
+    @apply whitespace-nowrap border-b border-line bg-canvas/60 px-5 py-2.5 text-xs font-medium text-muted;
+  }
+  .data-table tbody td {
+    @apply px-5 py-3 align-middle;
+  }
+  .data-table tbody tr {
+    @apply border-b border-line transition-colors duration-100 last:border-0 hover:bg-canvas/60;
   }
 
-  .badge-warn {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
-    background: var(--blue-soft);
-    color: var(--blue);
+  /* Link de texto padrão */
+  .text-link {
+    @apply font-medium text-brand underline-offset-4 transition-colors hover:text-brand-strong hover:underline;
   }
 }
 
 @layer utilities {
   .animate-fade-in {
-    animation: fade-in 0.22s ease-out both;
+    animation: fade-in 0.2s ease-out both;
   }
 
+  /* backwards: não mantém transform depois de terminar — senão vira containing block de `fixed` */
   .animate-slide-up {
-    animation: slide-up 0.28s ease-out both;
+    animation: slide-up 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   }
 
   .animate-pop-in {
-    animation: pop-in 0.18s ease-out both;
+    animation: pop-in 0.16s ease-out both;
+  }
+
+  .animate-drawer-in {
+    animation: drawer-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
 }
 
@@ -114,7 +128,7 @@ h1, h2, h3, .font-display {
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -133,9 +147,22 @@ h1, h2, h3, .font-display {
   }
 }
 
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

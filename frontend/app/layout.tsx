@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { Nav } from '@/components/nav'
+import { AppShell } from '@/components/app-shell'
 import { AuthGuard } from '@/components/auth-guard'
 import { fontSans } from '@/lib/fonts'
 
@@ -14,8 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={fontSans.variable}>
       <body>
         <AuthGuard>
-          <Nav />
-          <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+          <AppShell>{children}</AppShell>
         </AuthGuard>
       </body>
     </html>

@@ -1,12 +1,21 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { useState } from 'react'
+import { ChevronRight, Download, ExternalLink, Puzzle } from 'lucide-react'
 import { Button, buttonClass } from '@/components/ui/button'
-import { MuPluginGuide } from '@/components/client-form-guides'
+import { Notice } from '@/components/ui/notice'
+import {
+  BridgeFtpAlternative,
+  BridgeSecurityNotes,
+  GuideSteps,
+} from '@/components/client-form-guides'
+import { GuideDialog } from '@/components/field-hint'
 
 interface InstallBridgeButtonProps {
   /** Domínio do cliente, ex.: https://abxtelecom.com.br */
   dominio: string
+  size?: 'sm' | 'md'
+  className?: string
 }
 
 function wpPluginUploadUrl(dominio: string): string {
@@ -18,18 +27,8 @@ function wpPluginUploadUrl(dominio: string): string {
   }
 }
 
-export function InstallBridgeButton({ dominio }: InstallBridgeButtonProps) {
+export function InstallBridgeButton({ dominio, size = 'md', className }: InstallBridgeButtonProps) {
   const [open, setOpen] = useState(false)
-  const dialogId = useId()
-
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open])
 
   function handleInstall() {
     // Dispara download do ZIP instalável no WP Admin
@@ -48,79 +47,79 @@ export function InstallBridgeButton({ dominio }: InstallBridgeButtonProps) {
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={handleInstall}>
+      <Button type="button" variant="outline" size={size} className={className} onClick={handleInstall}>
+        <Puzzle aria-hidden />
         Instalar no WordPress
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/40"
-            aria-label="Fechar"
-            onClick={() => setOpen(false)}
-          />
-          <div
-            id={dialogId}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`${dialogId}-title`}
-            className="relative z-10 max-h-[85vh] w-full max-w-lg animate-pop-in overflow-y-auto rounded-xl border border-emerald-200 bg-white p-5 shadow-xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h3 id={`${dialogId}-title`} className="text-base font-semibold text-emerald-900">
-                Instalar P12 Bridge no WordPress
-              </h3>
-              <button
-                type="button"
-                className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-                onClick={() => setOpen(false)}
-              >
-                Fechar
-              </button>
-            </div>
+      <GuideDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Instalar o P12 Bridge no WordPress"
+        icon={<Puzzle />}
+        footer={
+          <>
+            <a
+              href="/p12-publisher-bridge.zip"
+              download="p12-publisher-bridge.zip"
+              className={buttonClass('outline', undefined, 'sm')}
+            >
+              <Download aria-hidden />
+              Baixar ZIP de novo
+            </a>
+            <a
+              href={wpPluginUploadUrl(dominio)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClass('outline', undefined, 'sm')}
+            >
+              <ExternalLink aria-hidden />
+              Abrir upload no WordPress
+            </a>
+          </>
+        }
+      >
+        <Notice tone="success" title="Download iniciado">
+          O arquivo <strong>p12-publisher-bridge.zip</strong> foi baixado e a tela de upload do
+          WordPress abriu em outra aba. Faça login no wp-admin se ele pedir.
+        </Notice>
 
-            <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-700">
-              <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-blue-950">
-                O ZIP <strong>p12-publisher-bridge.zip</strong> foi baixado e a tela de upload do
-                WordPress abriu em nova aba (faça login no wp-admin se pedir).
-              </p>
-              <ol className="list-decimal space-y-2 pl-5">
-                <li>
-                  Em <strong>Enviar plugin</strong>, escolha o arquivo ZIP baixado
-                </li>
-                <li>
-                  Clique em <strong>Instalar agora</strong>
-                </li>
-                <li>
-                  Depois clique em <strong>Ativar plugin</strong>
-                </li>
-                <li>
-                  Volte aqui e use <strong>Testar conexão</strong>
-                </li>
-              </ol>
-              <MuPluginGuide />
-              <div className="flex flex-wrap gap-2 pt-2">
-                <a
-                  href="/p12-publisher-bridge.zip"
-                  download="p12-publisher-bridge.zip"
-                  className={buttonClass('outline', 'h-9 text-sm')}
-                >
-                  Baixar ZIP de novo
-                </a>
-                <a
-                  href={wpPluginUploadUrl(dominio)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClass('outline', 'h-9 text-sm')}
-                >
-                  Abrir upload no WP
-                </a>
-              </div>
-            </div>
+        <section>
+          <h3 className="text-sm font-semibold text-ink">No WordPress do cliente</h3>
+          <div className="mt-2.5">
+            <GuideSteps
+              steps={[
+                <>
+                  Em <strong>Enviar plugin</strong>, escolha o ZIP baixado.
+                </>,
+                <>
+                  Clique em <strong>Instalar agora</strong>.
+                </>,
+                <>
+                  Clique em <strong>Ativar plugin</strong>.
+                </>,
+                <>
+                  Volte aqui e clique em <strong>Testar conexão</strong>.
+                </>,
+              ]}
+            />
           </div>
-        </div>
-      )}
+        </section>
+
+        <details className="group rounded-lg border border-line">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3.5 py-2.5 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
+            <ChevronRight
+              className="size-4 text-muted transition-transform duration-150 group-open:rotate-90"
+              aria-hidden
+            />
+            Segurança e instalação via FTP
+          </summary>
+          <div className="space-y-5 border-t border-line px-3.5 py-4">
+            <BridgeSecurityNotes />
+            <BridgeFtpAlternative />
+          </div>
+        </details>
+      </GuideDialog>
     </>
   )
 }

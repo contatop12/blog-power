@@ -1,7 +1,7 @@
-import { Plus_Jakarta_Sans } from 'next/font/google'
+import { Schibsted_Grotesk } from 'next/font/google'
 
-/** Fonte única sans-serif para UI e títulos */
-export const fontSans = Plus_Jakarta_Sans({
+/** Grotesk desenhada para um grupo de mídia — família única para UI, títulos e números */
+export const fontSans = Schibsted_Grotesk({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',

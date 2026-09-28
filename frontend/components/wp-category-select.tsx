@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { WpCategoryFormDialog } from '@/components/wp-category-form-dialog'
 import { api } from '@/lib/api'
@@ -23,6 +23,7 @@ export function WpCategorySelect({
   label = 'Categorias',
   hint,
 }: WpCategorySelectProps) {
+  const selectId = useId()
   const [categories, setCategories] = useState<WpCategoryOption[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -39,27 +40,26 @@ export function WpCategorySelect({
     loadCategories()
   }, [loadCategories])
 
-  const inputClass =
-    'w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100 disabled:text-slate-500'
-
   return (
     <>
-      <div className="block text-sm text-slate-700">
-        <div className="flex items-center justify-between gap-2">
-          <span>{label}</span>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <label htmlFor={selectId} className="text-sm font-medium text-ink">
+            {label}
+          </label>
           <button
             type="button"
-            className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-700 disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand transition-colors hover:bg-brand-soft disabled:pointer-events-none disabled:opacity-40"
             onClick={() => setDialogOpen(true)}
             disabled={disabled}
-            title="Adicionar categoria"
-            aria-label="Adicionar categoria"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="size-3.5" aria-hidden />
+            Nova categoria
           </button>
         </div>
         <select
-          className={`${inputClass} mt-1`}
+          id={selectId}
+          className="field-input"
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
           disabled={disabled}
@@ -72,10 +72,10 @@ export function WpCategorySelect({
             </option>
           ))}
         </select>
-        {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+        {hint && <span className="field-help">{hint}</span>}
         {loadError && (
-          <span className="mt-1 block text-xs text-amber-800">
-            Não foi possível carregar categorias: {loadError}
+          <span className="field-help text-amber-700">
+            Não foi possível carregar as categorias do WordPress: {loadError}
           </span>
         )}
       </div>

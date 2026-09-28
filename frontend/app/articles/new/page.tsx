@@ -1,10 +1,14 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { CalendarClock, ClipboardCheck, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { ChoiceGroup } from '@/components/ui/choice-group'
+import { Notice } from '@/components/ui/notice'
+import { PageHeader } from '@/components/ui/page-header'
+import { Skeleton } from '@/components/ui/skeleton'
 import { WpCategorySelect } from '@/components/wp-category-select'
 import { api } from '@/lib/api'
 import { defaultScheduleLocal, formatSchedulePreview, localDatetimeToUtcIso } from '@/lib/schedule'
@@ -25,6 +29,37 @@ const emptyBriefing: Briefing = {
 }
 
 const FUNIS = ['topo', 'meio', 'fundo', 'topo/meio', 'meio/fundo'] as const
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardTitle>{title}</CardTitle>
+      {description && <CardDescription>{description}</CardDescription>}
+      <div className="mt-5 space-y-5">{children}</div>
+    </Card>
+  )
+}
+
+function NewArticleSkeleton() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6" aria-busy="true" aria-label="Carregando">
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-48" />
+      </div>
+      <Skeleton className="h-64 rounded-xl" />
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  )
+}
 
 function NewArticleForm() {
   const router = useRouter()
@@ -94,32 +129,24 @@ function NewArticleForm() {
     }
   }
 
-  if (!clientId || !client) {
-    return <p className="text-slate-500">Carregando...</p>
-  }
+  if (!clientId || !client) return <NewArticleSkeleton />
 
-  const inputClass =
-    'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200'
+  const hasPastedText = conteudoColado.trim().length > 0
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <Link href={`/clients/${clientId}`} className="text-sm text-blue-700 hover:underline">
-          ← Voltar para {client.nome}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Novo artigo</h1>
-        <p className="mt-1 text-sm text-slate-600">Cliente: {client.nome}</p>
-        <p className="mt-1 text-xs text-slate-500">
-          Campos alinhados à planilha editorial (tema, KW, categorias, funil, direcionamento).
-        </p>
-      </div>
-      <Card>
-        <CardTitle>Briefing de pauta</CardTitle>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <label className="block text-sm text-slate-700">
-            Tema / título sugerido
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        back={{ href: `/clients/${clientId}`, label: client.nome }}
+        title="Novo artigo"
+        description="Preencha a pauta como na planilha editorial. Os agentes usam este briefing junto com o perfil do cliente."
+      />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Section title="Pauta" description="Sobre o que o artigo fala e para qual busca ele deve aparecer.">
+          <label className="block">
+            <span className="field-label">Tema ou título sugerido</span>
             <input
-              className={inputClass}
+              className="field-input"
               value={briefing.tema}
               onChange={(e) => setBriefing({ ...briefing, tema: e.target.value })}
               placeholder="Ex.: Wi‑Fi 7 para empresas: quando vale a pena migrar"
@@ -127,31 +154,37 @@ function NewArticleForm() {
             />
           </label>
 
-          <label className="block text-sm text-slate-700">
-            Palavra-chave principal
-            <input
-              className={inputClass}
-              value={briefing.kw_principal}
-              onChange={(e) => setBriefing({ ...briefing, kw_principal: e.target.value })}
-              required
-            />
-          </label>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="block">
+              <span className="field-label">Palavra-chave principal</span>
+              <input
+                className="field-input"
+                value={briefing.kw_principal}
+                onChange={(e) => setBriefing({ ...briefing, kw_principal: e.target.value })}
+                required
+              />
+            </label>
 
-          <label className="block text-sm text-slate-700">
-            Palavras-chave secundárias
-            <input
-              className={inputClass}
-              value={kwsSecundariasText}
-              onChange={(e) => setKwsSecundariasText(e.target.value)}
-              placeholder="Separadas por vírgula"
-            />
-          </label>
+            <label className="block">
+              <span className="field-label">Palavras-chave secundárias</span>
+              <input
+                className="field-input"
+                value={kwsSecundariasText}
+                onChange={(e) => setKwsSecundariasText(e.target.value)}
+                placeholder="wifi 7, roteador empresarial"
+              />
+              <span className="field-help">Separe por vírgula.</span>
+            </label>
+          </div>
+        </Section>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+        <Section title="Direcionamento" description="Como o artigo deve ser escrito e onde ele entra no blog.">
+          <div className="grid gap-5 sm:grid-cols-2">
             <WpCategorySelect
               clientId={clientId}
               value={categoriaId}
               onChange={setCategoriaId}
+              label="Categoria"
               disabled={wpPostType === 'page'}
               hint={
                 wpPostType === 'page'
@@ -160,126 +193,138 @@ function NewArticleForm() {
               }
             />
 
-            <label className="block text-sm text-slate-700">
-              Funil
+            <label className="block">
+              <span className="field-label">Etapa do funil</span>
               <select
-                className={inputClass}
+                className="field-input"
                 value={briefing.etapa_funil}
                 onChange={(e) => setBriefing({ ...briefing, etapa_funil: e.target.value })}
               >
                 {FUNIS.map((v) => (
                   <option key={v} value={v}>
-                    {v}
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
                   </option>
                 ))}
               </select>
             </label>
           </div>
 
-          <label className="block text-sm text-slate-700">
-            Ângulo / direcionamento editorial
+          <label className="block">
+            <span className="field-label">Ângulo editorial</span>
             <textarea
-              className={inputClass}
+              className="field-input"
               rows={3}
               value={briefing.angulo}
               onChange={(e) => setBriefing({ ...briefing, angulo: e.target.value })}
-              placeholder="Ex.: Focar em critérios B2B, evitar repetir guia geral existente"
+              placeholder="Ex.: focar em critérios B2B e não repetir o guia geral que já existe"
             />
           </label>
 
-          <label className="block text-sm text-slate-700">
-            Observações (CTA, serviço, URL sugerida, fontes)
+          <label className="block">
+            <span className="field-label">Observações</span>
             <textarea
-              className={inputClass}
+              className="field-input"
               rows={3}
               value={briefing.observacoes ?? ''}
               onChange={(e) => setBriefing({ ...briefing, observacoes: e.target.value })}
-              placeholder="CTA, cluster, links de referência, URL sugerida..."
+              placeholder="CTA, serviço a destacar, URL sugerida, links de referência"
             />
           </label>
+        </Section>
 
-          <label className="block text-sm text-slate-700">
-            Texto completo do artigo (opcional)
+        <Section
+          title="Texto pronto (opcional)"
+          description="Se você já tem o artigo escrito, cole aqui em Markdown. A redação é pulada e os agentes cuidam de SEO, links e revisão."
+        >
+          <label className="block">
+            <span className="sr-only">Texto completo do artigo em Markdown</span>
             <textarea
-              className={inputClass}
-              rows={14}
+              className="field-input font-mono text-[13px] leading-relaxed"
+              rows={hasPastedText ? 16 : 5}
               value={conteudoColado}
               onChange={(e) => setConteudoColado(e.target.value)}
-              placeholder="Cole aqui o artigo completo em Markdown. Se preencher, o sistema pula a redação, tenta aproveitar o SEO/slug/keywords do texto colado e vai direto para edição/revisão."
+              placeholder={'# Título do artigo\n\nCole o texto completo aqui…'}
             />
-            <span className="mt-1 block text-xs text-slate-500">
-              Ideal para quando você já escreveu o artigo e só quer revisar, gerar SEO, validar links
-              e publicar.
-            </span>
+          </label>
+          {hasPastedText && (
+            <Notice tone="info">A redação será pulada: o texto colado vai direto para edição e revisão.</Notice>
+          )}
+        </Section>
+
+        <Section title="Publicação" description="Você pode decidir a data agora ou só depois de revisar.">
+          <label className="block sm:max-w-xs">
+            <span className="field-label">Tipo de conteúdo</span>
+            <select
+              className="field-input"
+              value={wpPostType}
+              onChange={(e) => setWpPostType(e.target.value as WpPostType)}
+            >
+              <option value="post">Post (artigo de blog)</option>
+              <option value="page">Página</option>
+            </select>
           </label>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
-            <p className="text-sm font-medium text-slate-800">Publicação no WordPress</p>
+          <ChoiceGroup
+            name="schedule-mode"
+            legend="Agendamento"
+            value={scheduleMode}
+            onChange={setScheduleMode}
+            options={[
+              {
+                value: 'review',
+                label: 'Decidir na revisão',
+                description: 'O artigo espera por você antes de ir ao ar.',
+                icon: <ClipboardCheck />,
+              },
+              {
+                value: 'schedule',
+                label: 'Agendar agora',
+                description: 'Já deixa data e hora marcadas.',
+                icon: <CalendarClock />,
+              },
+            ]}
+          />
 
-            <label className="block text-sm text-slate-700">
-              Tipo de conteúdo
-              <select
-                className={inputClass}
-                value={wpPostType}
-                onChange={(e) => setWpPostType(e.target.value as WpPostType)}
-              >
-                <option value="post">Post (artigo de blog)</option>
-                <option value="page">Página</option>
-              </select>
+          {scheduleMode === 'schedule' && (
+            <label className="block animate-fade-in sm:max-w-xs">
+              <span className="field-label">Data e hora ({client.timezone})</span>
+              <input
+                type="datetime-local"
+                className="field-input"
+                value={scheduleLocal}
+                onChange={(e) => setScheduleLocal(e.target.value)}
+                required
+              />
+              <span className="field-help">
+                Vai ao ar em {formatSchedulePreview(scheduleLocal, client.timezone)}.
+              </span>
             </label>
+          )}
+        </Section>
 
-            <fieldset className="space-y-2">
-              <legend className="text-sm text-slate-700">Agendamento</legend>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="schedule-mode"
-                  checked={scheduleMode === 'review'}
-                  onChange={() => setScheduleMode('review')}
-                />
-                Definir na revisão
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="schedule-mode"
-                  checked={scheduleMode === 'schedule'}
-                  onChange={() => setScheduleMode('schedule')}
-                />
-                Agendar data/hora agora
-              </label>
-            </fieldset>
+        {error && (
+          <Notice tone="danger" title="O artigo não foi criado" className="animate-fade-in">
+            {error}
+          </Notice>
+        )}
 
-            {scheduleMode === 'schedule' && (
-              <label className="block text-sm text-slate-700">
-                Data e hora ({client.timezone})
-                <input
-                  type="datetime-local"
-                  className={inputClass}
-                  value={scheduleLocal}
-                  onChange={(e) => setScheduleLocal(e.target.value)}
-                  required
-                />
-                <span className="mt-1 block text-xs text-slate-500">
-                  Preview: {formatSchedulePreview(scheduleLocal, client.timezone)}
-                </span>
-              </label>
-            )}
-          </div>
-
-          {error && <p className="animate-fade-in text-sm text-red-700">{error}</p>}
-          <Button type="submit" loading={saving} loadingText="Gerando...">
+        <div className="flex flex-col-reverse items-start gap-3 rounded-xl border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted">
+            Os agentes começam assim que você enviar. O artigo aparece na revisão quando ficar pronto.
+          </p>
+          <Button type="submit" loading={saving} loadingText="Enviando aos agentes…" className="shrink-0">
+            <Sparkles aria-hidden />
             Gerar artigo
           </Button>
-        </form>
-      </Card>
+        </div>
+      </form>
     </div>
   )
 }
 
 export default function NewArticlePage() {
   return (
-    <Suspense fallback={<p className="text-slate-500">Carregando...</p>}>
+    <Suspense fallback={<NewArticleSkeleton />}>
       <NewArticleForm />
     </Suspense>
   )

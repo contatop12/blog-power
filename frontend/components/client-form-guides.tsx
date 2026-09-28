@@ -1,61 +1,98 @@
+import { Notice } from '@/components/ui/notice'
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded bg-canvas [overflow-wrap:anywhere] px-1 py-0.5 font-mono text-[12px] text-ink ring-1 ring-inset ring-line">
+      {children}
+    </code>
+  )
+}
+
+function GuideSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      <div className="mt-2.5">{children}</div>
+    </section>
+  )
+}
+
+function Bullets({ children }: { children: React.ReactNode }) {
+  return <ul className="list-disc space-y-1.5 pl-5 text-ink marker:text-subtle">{children}</ul>
+}
+
+/** Passos numerados de um guia — a ordem importa. */
+export function GuideSteps({ steps }: { steps: React.ReactNode[] }) {
+  return (
+    <ol className="space-y-2.5">
+      {steps.map((step, i) => (
+        <li key={i} className="flex gap-3">
+          <span
+            className="mt-px grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-semibold tabular-nums text-brand-strong"
+            aria-hidden
+          >
+            {i + 1}
+          </span>
+          <span className="min-w-0">{step}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export function WpApiUrlGuide() {
   return (
     <>
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
-        <strong>Não é a URL de login.</strong> Login do WordPress fica em{' '}
-        <code className="text-xs">/wp-admin</code> ou <code className="text-xs">/wp-login.php</code>.
-        Este campo é a <strong>API REST</strong> — o endereço que o Publisher usa para publicar posts
-        automaticamente.
-      </p>
+      <Notice tone="warning" title="Não é a URL de login">
+        O login do WordPress fica em <Code>/wp-admin</Code> ou <Code>/wp-login.php</Code>. Este
+        campo é a API REST: o endereço que o Publisher usa para publicar os posts.
+      </Notice>
 
-      <div>
-        <p className="font-medium text-slate-900">Como montar a URL</p>
-        <ol className="mt-2 list-decimal space-y-2 pl-5">
-          <li>
-            Use o mesmo domínio do campo <strong>Domínio</strong>, ex.:{' '}
-            <code className="text-xs">https://abxtelecom.com.br</code>
-          </li>
-          <li>
-            Acrescente <code className="text-xs">/wp-json</code> no final →{' '}
-            <code className="text-xs">https://abxtelecom.com.br/wp-json</code>
-          </li>
-          <li>
-            <strong>Sem barra</strong> depois de <code className="text-xs">wp-json</code>
-          </li>
-        </ol>
-      </div>
+      <GuideSection title="Como montar a URL">
+        <GuideSteps
+          steps={[
+            <>
+              Comece pelo mesmo endereço do campo <strong>Domínio</strong>, ex.:{' '}
+              <Code>https://abxtelecom.com.br</Code>
+            </>,
+            <>
+              Acrescente <Code>/wp-json</Code> no final: <Code>https://abxtelecom.com.br/wp-json</Code>
+            </>,
+            <>
+              Não coloque barra depois de <Code>wp-json</Code>.
+            </>,
+          ]}
+        />
+      </GuideSection>
 
-      <div>
-        <p className="font-medium text-slate-900">Como conferir no navegador</p>
-        <ol className="mt-2 list-decimal space-y-2 pl-5">
-          <li>Abra a URL no Chrome/Edge (logado ou anônimo)</li>
-          <li>
-            Deve aparecer um <strong>JSON</strong> com algo como{' '}
-            <code className="text-xs">&quot;name&quot;:&quot;Nome do site&quot;</code>
-          </li>
-          <li>Se aparecer JSON, a URL está correta — não há tela específica no wp-admin para copiar</li>
-        </ol>
-      </div>
+      <GuideSection title="Como conferir no navegador">
+        <GuideSteps
+          steps={[
+            'Abra a URL no navegador, logado ou em janela anônima.',
+            <>
+              Deve aparecer um JSON com algo como <Code>&quot;name&quot;:&quot;Nome do site&quot;</Code>
+            </>,
+            'Se o JSON apareceu, a URL está certa. Não existe tela no wp-admin para copiar esse endereço.',
+          ]}
+        />
+      </GuideSection>
 
-      <div>
-        <p className="font-medium text-slate-900">Dentro do WordPress (quando dá erro)</p>
-        <ul className="mt-2 list-disc space-y-2 pl-5">
+      <GuideSection title="Se der erro">
+        <Bullets>
           <li>
-            <strong>Ajustes → Links permanentes</strong> — escolha qualquer opção{' '}
-            <em>exceto</em> &quot;Simples&quot; (a API precisa de permalinks ativos)
+            Em <strong>Ajustes › Links permanentes</strong>, escolha qualquer opção menos
+            &quot;Simples&quot;. A API precisa de links permanentes ativos.
           </li>
           <li>
-            Site em subpasta? Inclua a pasta:{' '}
-            <code className="text-xs">https://site.com.br/blog/wp-json</code>
+            Site em subpasta? Inclua a pasta: <Code>https://site.com.br/blog/wp-json</Code>
           </li>
-          <li>404 ou página em branco? Verifique cache, firewall ou plugin que bloqueie REST API</li>
-        </ul>
-      </div>
+          <li>404 ou página em branco? Verifique cache, firewall ou plugin que bloqueie a API REST.</li>
+        </Bullets>
+      </GuideSection>
 
-      <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-950">
-        <strong>Resumo:</strong> domínio + <code className="text-xs">/wp-json</code> — não use{' '}
-        <code className="text-xs">/wp-admin</code> neste campo.
-      </p>
+      <Notice tone="info" title="Resumo">
+        Domínio + <Code>/wp-json</Code>. Nunca use <Code>/wp-admin</Code> neste campo.
+      </Notice>
     </>
   )
 }
@@ -64,77 +101,94 @@ export function WpAppPasswordGuide() {
   return (
     <>
       <p>
-        Não use a senha de login do WordPress. É uma <strong>Application Password</strong> gerada
-        só para integrações.
+        Não use a senha de login do WordPress. A <strong>Application Password</strong> é uma senha
+        gerada só para integrações.
       </p>
-      <ol className="list-decimal space-y-2 pl-5">
-        <li>
-          Entre no wp-admin com o usuário do campo <strong>Usuário WP</strong>
-        </li>
-        <li>
-          Vá em <strong>Usuários → Perfil</strong> (ou seu perfil, canto superior direito)
-        </li>
-        <li>
-          Role até <strong>Application Passwords</strong> / <strong>Senhas de aplicativo</strong>
-        </li>
-        <li>
-          Nome: ex. <code className="text-xs">Publisher P12</code> → <strong>Adicionar</strong>
-        </li>
-        <li>Copie o código exibido uma única vez e cole neste campo (espaços são opcionais)</li>
-      </ol>
-      <p className="text-xs text-slate-500">
-        Se não aparecer a seção, confirme WordPress 5.6+ e HTTPS no site.
+      <GuideSteps
+        steps={[
+          <>
+            Entre no wp-admin com o usuário informado em <strong>Usuário WP</strong>.
+          </>,
+          <>
+            Abra <strong>Usuários › Perfil</strong> (ou clique no seu nome, no canto superior
+            direito).
+          </>,
+          <>
+            Role até <strong>Senhas de aplicativo</strong> (<em>Application Passwords</em>).
+          </>,
+          <>
+            Dê um nome, como <Code>Publisher P12</Code>, e clique em <strong>Adicionar</strong>.
+          </>,
+          'Copie o código, que aparece uma única vez, e cole neste campo. Os espaços são opcionais.',
+        ]}
+      />
+      <p className="text-xs text-muted">
+        Se a seção não aparecer, confirme que o WordPress é 5.6 ou mais novo e que o site usa HTTPS.
       </p>
     </>
+  )
+}
+
+/** O que o plugin faz e não faz — para responder dúvidas do cliente. */
+export function BridgeSecurityNotes() {
+  return (
+    <GuideSection title="Segurança">
+      <Bullets>
+        <li>Não envia dados para servidores externos (sem telemetria).</li>
+        <li>
+          Só usuários com <Code>edit_posts</Code> gravam metadados pela API.
+        </li>
+        <li>JSON-LD validado e protegido contra XSS.</li>
+        <li>Não armazena a Application Password.</li>
+      </Bullets>
+    </GuideSection>
+  )
+}
+
+export function BridgeFtpAlternative() {
+  return (
+    <GuideSection title="Alternativa: mu-plugin via FTP">
+      <p>
+        Envie <Code>p12-publisher-bridge.php</Code> para <Code>wp-content/mu-plugins/</Code>. Ele
+        carrega sozinho, sem precisar ativar.
+      </p>
+    </GuideSection>
   )
 }
 
 export function MuPluginGuide() {
   return (
     <>
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
-        O <strong>P12 Publisher Bridge</strong> já está pronto (v1.1.0). Prefira instalar{' '}
-        <strong>dentro do WordPress</strong> pelo menu Plugins (ZIP). Alternativa: mu-plugin via FTP.
-      </p>
+      <Notice tone="info">
+        O <strong>P12 Publisher Bridge</strong> expõe os campos de SEO (Yoast ou Rank Math) e o
+        JSON-LD para o Publisher gravar pela API. Prefira instalar pelo menu Plugins do WordPress;
+        a alternativa é copiar como mu-plugin via FTP.
+      </Notice>
 
-      <div>
-        <p className="font-medium text-slate-900">Instalar no WordPress (recomendado)</p>
-        <ol className="mt-2 list-decimal space-y-2 pl-5">
-          <li>
-            Clique em <strong>Instalar no WordPress</strong> — o ZIP baixa automaticamente
-          </li>
-          <li>
-            Abre a tela <strong>Plugins → Enviar plugin</strong> do site do cliente
-          </li>
-          <li>
-            Em &quot;Plugin zip&quot;, escolha <code className="text-xs">p12-publisher-bridge.zip</code>
-          </li>
-          <li>
-            <strong>Instalar agora</strong> → <strong>Ativar</strong>
-          </li>
-          <li>
-            Volte ao Publisher e clique em <strong>Testar conexão</strong>
-          </li>
-        </ol>
-      </div>
+      <GuideSection title="Instalar pelo WordPress (recomendado)">
+        <GuideSteps
+          steps={[
+            <>
+              Clique em <strong>Instalar no WordPress</strong>. O ZIP baixa sozinho.
+            </>,
+            <>
+              A tela <strong>Plugins › Enviar plugin</strong> do site do cliente abre em outra aba.
+            </>,
+            <>
+              Em &quot;Plugin zip&quot;, escolha <Code>p12-publisher-bridge.zip</Code>.
+            </>,
+            <>
+              Clique em <strong>Instalar agora</strong> e depois em <strong>Ativar</strong>.
+            </>,
+            <>
+              Volte ao Publisher e clique em <strong>Testar conexão</strong>.
+            </>,
+          ]}
+        />
+      </GuideSection>
 
-      <div>
-        <p className="font-medium text-slate-900">Segurança</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Não envia dados para servidores externos (sem telemetria)</li>
-          <li>Só usuários com <code className="text-xs">edit_posts</code> gravam meta via API</li>
-          <li>JSON-LD validado e protegido contra XSS</li>
-          <li>Não armazena Application Password no plugin</li>
-        </ul>
-      </div>
-
-      <div>
-        <p className="font-medium text-slate-900">Alternativa mu-plugin (FTP)</p>
-        <p className="mt-1 text-sm">
-          Envie <code className="text-xs">p12-publisher-bridge.php</code> para{' '}
-          <code className="text-xs">wp-content/mu-plugins/</code> (carrega sozinho, sem ativar).
-        </p>
-      </div>
+      <BridgeSecurityNotes />
+      <BridgeFtpAlternative />
     </>
   )
 }

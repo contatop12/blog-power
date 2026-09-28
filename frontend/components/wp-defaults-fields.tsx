@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { Notice } from '@/components/ui/notice'
 import { WpCategorySelect } from '@/components/wp-category-select'
 import { api } from '@/lib/api'
 import type { WpAuthorOption } from '@publisher-p12/types'
@@ -13,6 +15,7 @@ interface WpDefaultsFieldsProps {
   onAutorChange: (id: number | null) => void
 }
 
+/** Seção "Padrões de publicação": categoria e autor que cada artigo novo já traz marcados. */
 export function WpDefaultsFields({
   clientId,
   categoriaPadraoId,
@@ -20,6 +23,7 @@ export function WpDefaultsFields({
   onCategoriaChange,
   onAutorChange,
 }: WpDefaultsFieldsProps) {
+  const authorSelectId = useId()
   const [authors, setAuthors] = useState<WpAuthorOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -30,41 +34,50 @@ export function WpDefaultsFields({
       .catch((e: Error) => setError(e.message))
   }, [clientId])
 
-  const inputClass =
-    'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200'
-
   return (
-    <div className="mt-4 grid gap-5 border-t border-slate-200 pt-5 sm:grid-cols-2">
-      <p className="text-sm text-slate-600 sm:col-span-2">
-        Categorias e autores vêm do WordPress do cliente. Gerencie categorias na aba
-        &quot;Categorias&quot; ou use o botão + ao lado do campo.
-      </p>
+    <Card>
+      <CardTitle>Padrões de publicação</CardTitle>
+      <CardDescription>
+        Vêm do WordPress do cliente e já chegam marcados em cada artigo novo. Para criar ou renomear
+        categorias, use a aba Categorias.
+      </CardDescription>
 
-      {error && <p className="text-sm text-amber-800 sm:col-span-2">WP: {error}</p>}
+      {error && (
+        <Notice tone="warning" title="Não foi possível carregar os autores do WordPress" className="mt-5">
+          <p>{error}</p>
+          <p className="mt-1">Confira a conexão em Ações WordPress, nesta mesma aba.</p>
+        </Notice>
+      )}
 
-      <WpCategorySelect
-        clientId={clientId}
-        value={categoriaPadraoId}
-        onChange={onCategoriaChange}
-        label="Categoria padrão"
-        hint="Usada ao criar novos artigos para este cliente."
-      />
+      <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <WpCategorySelect
+          clientId={clientId}
+          value={categoriaPadraoId}
+          onChange={onCategoriaChange}
+          label="Categoria padrão"
+          hint="Usada ao criar novos artigos para este cliente."
+        />
 
-      <label className="block text-sm text-slate-700">
-        Autor padrão
-        <select
-          className={inputClass}
-          value={autorPadraoId ?? ''}
-          onChange={(e) => onAutorChange(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">Padrão do WP</option>
-          {authors.map((author) => (
-            <option key={author.id} value={author.id}>
-              {author.name}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
+        <div>
+          <label htmlFor={authorSelectId} className="field-label">
+            Autor padrão
+          </label>
+          <select
+            id={authorSelectId}
+            className="field-input"
+            value={autorPadraoId ?? ''}
+            onChange={(e) => onAutorChange(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Padrão do WordPress</option>
+            {authors.map((author) => (
+              <option key={author.id} value={author.id}>
+                {author.name}
+              </option>
+            ))}
+          </select>
+          <span className="field-help">Quem aparece como autor do post no site.</span>
+        </div>
+      </div>
+    </Card>
   )
 }

@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { CalendarClock, Send, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { ChoiceGroup } from '@/components/ui/choice-group'
+import { Notice } from '@/components/ui/notice'
 import { WpCategorySelect } from '@/components/wp-category-select'
 import { api } from '@/lib/api'
 import {
@@ -105,8 +108,8 @@ export function PublishPanel({
 
       setMessage(
         mode === 'now'
-          ? `Publicação enviada como ${wpPostType === 'page' ? 'página' : 'post'}. Será publicado imediatamente no WordPress.`
-          : `${wpPostType === 'page' ? 'Página' : 'Post'} agendado para ${formatSchedulePreview(scheduleLocal, client.timezone)} (${client.timezone}).`,
+          ? `${wpPostType === 'page' ? 'Página enviada' : 'Post enviado'} ao WordPress para publicação imediata.`
+          : `${wpPostType === 'page' ? 'Página agendada' : 'Post agendado'} para ${formatSchedulePreview(scheduleLocal, client.timezone)} (${client.timezone}).`,
       )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao publicar')
@@ -115,81 +118,96 @@ export function PublishPanel({
     }
   }
 
-  const inputClass =
-    'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200'
-
   return (
     <Card>
-      <CardTitle>Publicação no WordPress</CardTitle>
-      <p className="mt-2 text-sm text-slate-600">
-        Escolha o tipo de conteúdo, categorias (só para posts), data/hora e envie. O fuso do cliente é
-        usado no agendamento.
-      </p>
+      <CardTitle className="flex items-center gap-2">
+        <Send className="size-4 text-muted" aria-hidden />
+        Publicação no WordPress
+      </CardTitle>
+      <CardDescription>
+        O agendamento usa o fuso do cliente{client ? ` (${client.timezone})` : ''}. Categorias e tags
+        só valem para posts.
+      </CardDescription>
 
       {loadError && (
-        <p className="mt-3 text-sm text-amber-800">
-          Não foi possível carregar taxonomias do WP: {loadError}. Verifique a conexão do cliente.
-        </p>
+        <Notice tone="warning" title="Tags e autores do WordPress não carregaram" className="mt-4">
+          {loadError}. Teste a conexão na página do cliente.
+        </Notice>
       )}
 
-      <div className="mt-4 space-y-4">
-        <label className="block text-sm text-slate-700">
-          Tipo no WordPress
-          <select
-            className={inputClass}
-            value={wpPostType}
-            onChange={(e) => setWpPostType(e.target.value as WpPostType)}
-          >
-            <option value="post">Post (artigo de blog)</option>
-            <option value="page">Página</option>
-          </select>
-          {wpPostType === 'page' && (
-            <span className="mt-1 block text-xs text-slate-500">
-              Páginas não usam categorias nem tags no WordPress.
-            </span>
-          )}
-        </label>
-
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-slate-800">Quando publicar</legend>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="publish-mode"
-              checked={mode === 'now'}
-              onChange={() => setMode('now')}
-            />
-            Publicar agora
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="publish-mode"
-              checked={mode === 'schedule'}
-              onChange={() => setMode('schedule')}
-            />
-            Agendar publicação
-          </label>
-        </fieldset>
+      <div className="mt-5 space-y-5">
+        <ChoiceGroup
+          name="publish-mode"
+          legend="Quando publicar"
+          value={mode}
+          onChange={setMode}
+          options={[
+            {
+              value: 'schedule',
+              label: 'Agendar',
+              description: 'Escolha data e hora no fuso do cliente.',
+              icon: <CalendarClock />,
+            },
+            {
+              value: 'now',
+              label: 'Publicar agora',
+              description: 'Vai ao ar assim que o WordPress receber.',
+              icon: <Zap />,
+            },
+          ]}
+        />
 
         {mode === 'schedule' && client && (
-          <label className="block text-sm text-slate-700">
-            Data e hora ({client.timezone})
+          <label className="block animate-fade-in">
+            <span className="field-label">Data e hora ({client.timezone})</span>
             <input
               type="datetime-local"
-              className={inputClass}
+              className="field-input sm:max-w-xs"
               value={scheduleLocal}
               onChange={(e) => setScheduleLocal(e.target.value)}
               required
             />
-            <span className="mt-1 block text-xs text-slate-500">
-              Preview: {formatSchedulePreview(scheduleLocal, client.timezone)}
+            <span className="field-help">
+              Vai ao ar em {formatSchedulePreview(scheduleLocal, client.timezone)}.
             </span>
           </label>
         )}
 
+        <div className="grid gap-5 sm:grid-cols-2">
+          <label className="block">
+            <span className="field-label">Tipo no WordPress</span>
+            <select
+              className="field-input"
+              value={wpPostType}
+              onChange={(e) => setWpPostType(e.target.value as WpPostType)}
+            >
+              <option value="post">Post (artigo de blog)</option>
+              <option value="page">Página</option>
+            </select>
+            {wpPostType === 'page' && (
+              <span className="field-help">Páginas não usam categorias nem tags no WordPress.</span>
+            )}
+          </label>
+
+          <label className="block">
+            <span className="field-label">Autor</span>
+            <select
+              className="field-input"
+              value={autorId === '' ? '' : String(autorId)}
+              onChange={(e) => setAutorId(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">Padrão do WordPress</option>
+              {authors.map((author) => (
+                <option key={author.id} value={author.id}>
+                  {author.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         {wpPostType === 'post' && (
-          <>
+          <div className="grid gap-5 sm:grid-cols-2">
             <WpCategorySelect
               clientId={clientId}
               value={categoriaId}
@@ -198,11 +216,11 @@ export function PublishPanel({
               hint="Categoria editorial do post no WordPress."
             />
 
-            <label className="block text-sm text-slate-700">
-              Tags (opcional)
+            <label className="block">
+              <span className="field-label">Tags (opcional)</span>
               <select
                 multiple
-                className={`${inputClass} min-h-[88px]`}
+                className="field-input min-h-[96px] !bg-none !pr-3"
                 value={tagIds.map(String)}
                 onChange={(e) => {
                   const selected = Array.from(e.target.selectedOptions).map((o) => Number(o.value))
@@ -215,45 +233,45 @@ export function PublishPanel({
                   </option>
                 ))}
               </select>
+              <span className="field-help">Segure Ctrl (ou Cmd) para escolher várias.</span>
             </label>
-          </>
+          </div>
         )}
-
-        <label className="block text-sm text-slate-700">
-          Autor
-          <select
-            className={inputClass}
-            value={autorId === '' ? '' : String(autorId)}
-            onChange={(e) => setAutorId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">Padrão do WordPress</option>
-            {authors.map((author) => (
-              <option key={author.id} value={author.id}>
-                {author.name}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       {linksInvalid && (
-        <p className="mt-3 text-sm text-red-700">
-          Corrija links internos inválidos antes de publicar.
-        </p>
+        <Notice tone="danger" title="Há links internos inválidos" className="mt-5">
+          Corrija ou remova os links marcados no painel SEO antes de publicar.
+        </Notice>
       )}
 
-      {error && <p className="mt-3 animate-fade-in text-sm text-red-700">{error}</p>}
-      {message && <p className="mt-3 animate-fade-in text-sm text-emerald-700">{message}</p>}
+      {error && (
+        <Notice tone="danger" title="A publicação falhou" className="mt-5 animate-fade-in">
+          {error}
+        </Notice>
+      )}
+      {message && (
+        <Notice tone="success" className="mt-5 animate-fade-in">
+          {message}
+        </Notice>
+      )}
 
-      <Button
-        className="mt-4"
-        loading={publishing}
-        loadingText={mode === 'now' ? 'Publicando...' : 'Agendando...'}
-        disabled={linksInvalid || !client}
-        onClick={handlePublish}
-      >
-        {mode === 'now' ? 'Publicar agora no WordPress' : 'Agendar no WordPress'}
-      </Button>
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-5">
+        <Button
+          loading={publishing}
+          loadingText={mode === 'now' ? 'Publicando…' : 'Agendando…'}
+          disabled={linksInvalid || !client}
+          onClick={handlePublish}
+        >
+          {mode === 'now' ? <Zap aria-hidden /> : <CalendarClock aria-hidden />}
+          {mode === 'now' ? 'Publicar agora no WordPress' : 'Agendar no WordPress'}
+        </Button>
+        {mode === 'schedule' && client && scheduleLocal && (
+          <span className="text-sm text-muted">
+            {formatSchedulePreview(scheduleLocal, client.timezone)}
+          </span>
+        )}
+      </div>
     </Card>
   )
 }

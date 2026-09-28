@@ -1,46 +1,57 @@
 import { cn } from '@/lib/utils'
 
 export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn('animate-pulse rounded-md bg-slate-200/80', className)}
-      aria-hidden
-    />
-  )
+  return <div className={cn('animate-pulse rounded-md bg-ink/[0.07]', className)} aria-hidden />
 }
 
 export function ClientPageSkeleton() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6" aria-busy="true" aria-label="Carregando cliente">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-64" />
-          <Skeleton className="h-3 w-40" />
+    <div className="space-y-6" aria-busy="true" aria-label="Carregando cliente">
+      <div className="flex items-end justify-between">
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-40" />
         </div>
-        <Skeleton className="h-10 w-28" />
+        <Skeleton className="h-10 w-32 rounded-lg" />
       </div>
-      <div className="flex gap-2 border-b border-zinc-200 pb-0">
-        <Skeleton className="mb-2 h-8 w-36" />
-        <Skeleton className="mb-2 h-8 w-24" />
+      <Skeleton className="h-24 w-full rounded-xl" />
+      <div className="flex gap-2 border-b border-line pb-2">
+        {['w-28', 'w-20', 'w-24', 'w-24', 'w-20'].map((w, i) => (
+          <Skeleton key={i} className={cn('h-7', w)} />
+        ))}
       </div>
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+      <div className="space-y-4 rounded-xl border border-line bg-surface p-6">
         <Skeleton className="h-5 w-40" />
-        <div className="flex gap-3">
-          <Skeleton className="h-10 w-36" />
-          <Skeleton className="h-10 w-44" />
-        </div>
-      </div>
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-5">
-        <Skeleton className="h-5 w-36" />
         <Skeleton className="h-10 w-full" />
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
-        <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-32" />
       </div>
+    </div>
+  )
+}
+
+/** Linhas genéricas para listas e tabelas em carregamento. */
+export function ListSkeleton({ rows = 4, label }: { rows?: number; label: string }) {
+  return (
+    <div
+      className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface"
+      aria-busy="true"
+      aria-label={label}
+    >
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-4 px-5 py-4">
+          <Skeleton className="size-9 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-3 w-1/4" />
+          </div>
+          <Skeleton className="h-8 w-20 rounded-lg" />
+        </div>
+      ))}
     </div>
   )
 }
