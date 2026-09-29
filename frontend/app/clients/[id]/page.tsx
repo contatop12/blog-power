@@ -148,17 +148,17 @@ function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           return (
             <li
               key={step.key}
-              className={cn('flex gap-3.5 px-5 py-4', isCurrent && 'bg-brand-soft/40')}
+              className={cn('flex gap-3.5 px-5 py-4', isCurrent && 'bg-canvas/60')}
               aria-current={isCurrent ? 'step' : undefined}
             >
               <span
                 className={cn(
-                  'grid size-7 shrink-0 place-items-center rounded-full text-[13px] font-semibold tabular-nums',
+                  'grid size-7 shrink-0 place-items-center rounded-[5px] font-display text-[14px] font-black tabular-nums',
                   step.done
                     ? 'bg-emerald-50 text-emerald-600'
                     : isCurrent
-                      ? 'bg-brand text-white'
-                      : 'bg-surface text-muted ring-1 ring-inset ring-line-strong',
+                      ? 'bg-ink text-white shadow-[inset_0_-2px_0_rgb(var(--cyan))]'
+                      : 'border border-dashed border-line-strong bg-surface text-muted',
                 )}
                 aria-hidden
               >

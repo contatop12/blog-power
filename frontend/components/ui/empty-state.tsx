@@ -28,7 +28,7 @@ export function EmptyState({
       {icon && (
         <span
           className={cn(
-            'mb-3 inline-flex items-center justify-center rounded-full bg-brand-soft text-brand',
+            'mb-3 inline-flex items-center justify-center rounded-lg border border-ink/15 bg-canvas text-ink',
             compact ? 'size-9 [&_svg]:size-4' : 'size-11 [&_svg]:size-5',
           )}
           aria-hidden
@@ -36,7 +36,7 @@ export function EmptyState({
           {icon}
         </span>
       )}
-      <p className={cn('font-semibold text-ink', compact ? 'text-sm' : 'text-base')}>{title}</p>
+      <p className={cn('font-display font-bold text-ink', compact ? 'text-base' : 'text-xl')}>{title}</p>
       {description && (
         <p className={cn('mt-1 max-w-sm text-muted', compact ? 'text-[13px]' : 'text-sm')}>
           {description}

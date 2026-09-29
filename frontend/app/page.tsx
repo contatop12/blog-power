@@ -145,7 +145,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
             <span
               className={buttonClass(
                 'outline',
-                'hidden shrink-0 group-hover:border-brand/40 group-hover:bg-brand-soft group-hover:text-brand-strong sm:inline-flex',
+                'hidden shrink-0 group-hover:border-ink sm:inline-flex',
                 'sm',
               )}
             >

@@ -1,9 +1,10 @@
 'use client'
 
-import { ShieldCheck } from 'lucide-react'
+import { Check, ShieldCheck, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Notice } from '@/components/ui/notice'
+import { Stamp } from '@/components/ui/print'
 import { cn } from '@/lib/utils'
 import { QA_SCORE_MINIMO, type Dossie, type QaReport, type QaScore } from '@publisher-p12/types'
 
@@ -55,11 +56,12 @@ export function QaReportPanel({ qa, dossie }: QaReportPanelProps) {
           <ShieldCheck className="size-4 text-muted" aria-hidden />
           Controle de qualidade
         </CardTitle>
-        <div className="flex items-center gap-2">
-          <Badge tone={aprovado ? 'success' : 'danger'} dot>
-            {aprovado ? 'Aprovado' : 'Reprovado'}
-          </Badge>
+        <div className="flex items-center gap-3">
           <Badge>Rodada {qa.rodada}</Badge>
+          <Stamp tone={aprovado ? 'key' : 'danger'}>
+            {aprovado ? <Check strokeWidth={3} aria-hidden /> : <X strokeWidth={3} aria-hidden />}
+            {aprovado ? 'Aprovado' : 'Reprovado'}
+          </Stamp>
         </div>
       </div>
 
@@ -81,20 +83,20 @@ export function QaReportPanel({ qa, dossie }: QaReportPanelProps) {
                 <span
                   className={cn(
                     'font-semibold tabular-nums',
-                    reprovada ? 'text-red-600' : 'text-emerald-700',
+                    reprovada ? 'text-[#B42318]' : 'text-ink',
                   )}
                 >
                   {nota.toFixed(1)}
                 </span>
               </div>
-              <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/[0.07]">
+              <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-[1px] bg-ink/[0.07]">
                 <div
-                  className={cn('h-full rounded-full', reprovada ? 'bg-red-500' : 'bg-emerald-500')}
+                  className={cn('h-full', reprovada ? 'bg-spot' : 'bg-ink')}
                   style={{ width: `${Math.max(0, Math.min(10, nota)) * 10}%` }}
                 />
                 {/* Marca do mínimo aceito */}
                 <span
-                  className="absolute inset-y-0 w-px bg-ink/40"
+                  className="absolute inset-y-0 w-0.5 bg-process-cyan"
                   style={{ left: `${QA_SCORE_MINIMO * 10}%` }}
                   aria-hidden
                 />
@@ -105,8 +107,8 @@ export function QaReportPanel({ qa, dossie }: QaReportPanelProps) {
       </div>
 
       <p className="mt-4 text-xs text-muted">
-        Nenhuma categoria pode ficar abaixo de {QA_SCORE_MINIMO} (Skill §64). A linha em cada barra
-        marca esse mínimo.
+        Nenhuma categoria pode ficar abaixo de {QA_SCORE_MINIMO} (Skill §64). O traço ciano em cada
+        barra marca esse mínimo.
       </p>
 
       {qa.correcoes.length > 0 && (

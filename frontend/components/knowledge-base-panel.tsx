@@ -682,7 +682,7 @@ function PautaItem({
               </Badge>
             )}
             {pauta.etapa_funil && (
-              <Badge tone="violet" title="Etapa do funil">
+              <Badge title="Etapa do funil">
                 {pauta.etapa_funil}
               </Badge>
             )}

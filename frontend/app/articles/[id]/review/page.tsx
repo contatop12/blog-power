@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
+import { CropMarks } from '@/components/ui/print'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
@@ -254,7 +255,11 @@ export default function ReviewPage() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">
-          <Card className="p-0 transition-[border-color,box-shadow] focus-within:border-brand/50 focus-within:shadow-[0_0_0_3px_rgb(var(--brand)/0.12)] sm:p-0">
+          <CropMarks
+            className="mt-8 lg:mx-0"
+            label={`Prova${article.dossie?.rodada ? ` da rodada ${article.dossie.rodada}` : ''}`}
+          >
+          <Card className="p-0 transition-[border-color,box-shadow] focus-within:border-ink/40 focus-within:shadow-[0_0_0_3px_rgb(var(--cyan)/0.18)] sm:p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="size-4 text-muted" aria-hidden />
@@ -302,6 +307,7 @@ export default function ReviewPage() {
               </div>
             )}
           </Card>
+          </CropMarks>
 
           <QaReportPanel qa={article.qa} dossie={article.dossie} />
 
@@ -315,7 +321,7 @@ export default function ReviewPage() {
           />
         </div>
 
-        <aside className="min-w-0 space-y-6">
+        <aside className="min-w-0 space-y-6 lg:mt-8">
           <Card>
             <CardTitle className="flex items-center gap-2">
               <Search className="size-4 text-muted" aria-hidden />
@@ -364,7 +370,7 @@ export default function ReviewPage() {
                   {humanize(pesquisa.intencao)}
                 </Badge>
                 <Badge>{FRESHNESS[pesquisa.freshness] ?? pesquisa.freshness}</Badge>
-                {pesquisa.cluster && <Badge tone="violet">Cluster: {pesquisa.cluster}</Badge>}
+                {pesquisa.cluster && <Badge>Cluster: {pesquisa.cluster}</Badge>}
               </div>
               {canibalizacao.length > 0 && (
                 <div className="mt-4 space-y-2">

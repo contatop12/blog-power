@@ -8,14 +8,16 @@ interface ClientStatusIconProps {
   className?: string
 }
 
-/** Ponto com halo: verde (ok), âmbar (atenção), vermelho (erro), cinza (não testado). */
+/** Luz de sinal: verde (ok), âmbar (atenção), vermelho (erro), cinza (não testado). */
 export function ClientStatusIcon({ status, className }: ClientStatusIconProps) {
   const meta = CONNECTION_STATUS[status]
   return (
     <StatusDot
       tone={meta.tone}
+      shape="round"
       label={meta.title}
-      className={cn('size-2.5 rounded-full ring-4 ring-ink/[0.04]', className)}
+      pulse={status === 'erro'}
+      className={cn('size-2.5 ring-4 ring-ink/[0.05]', className)}
     />
   )
 }

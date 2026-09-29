@@ -19,6 +19,8 @@ const CHAIN = [
   { name: 'Você', text: 'Aprova e agenda no WordPress do cliente' },
 ]
 
+const INKS = ['bg-process-cyan', 'bg-process-magenta', 'bg-process-yellow', 'bg-white']
+
 export default function LoginPage() {
   const router = useRouter()
   const [user, setUser] = useState('')
@@ -51,44 +53,44 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <aside className="relative hidden overflow-hidden bg-night px-12 py-12 text-white lg:flex lg:flex-col">
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <aside className="relative hidden overflow-hidden bg-night px-14 py-12 text-white lg:flex lg:flex-col">
         <BrandMark />
 
-        <div className="my-auto max-w-md py-12">
-          <h1 className="text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] text-white">
-            Da pauta ao post agendado.
+        <div className="my-auto max-w-xl py-14">
+          <h1 className="font-display text-[88px] font-black leading-[0.82] tracking-[-0.03em] text-white">
+            Da pauta
+            <br />
+            ao post
+            <br />
+            agendado<span className="text-process-cyan">.</span>
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-white/60">
-            Uma equipe de agentes pesquisa, escreve e revisa cada artigo. Você decide o que vai ao
-            ar.
+          <p className="mt-7 max-w-md text-base leading-relaxed text-white/60">
+            Uma equipe de agentes pesquisa, escreve e revisa cada artigo. Você decide o que vai ao ar.
           </p>
 
-          <ol className="mt-10">
+          <ol className="mt-12 grid gap-x-8 gap-y-5 sm:grid-cols-2">
             {CHAIN.map((step, i) => {
               const last = i === CHAIN.length - 1
               return (
                 <li
                   key={step.name}
-                  className="relative flex animate-slide-up gap-4 pb-5 last:pb-0"
-                  style={{ animationDelay: `${120 + i * 90}ms` }}
+                  className="flex animate-slide-up gap-3"
+                  style={{ animationDelay: `${200 + i * 80}ms` }}
                 >
-                  {!last && (
-                    <span className="absolute left-[11px] top-7 h-[calc(100%-1.5rem)] w-px bg-white/15" aria-hidden />
-                  )}
                   <span
                     className={cn(
-                      'relative grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums',
-                      last ? 'bg-brand text-white ring-4 ring-brand/25' : 'bg-white/10 text-white/70',
+                      'grid size-6 shrink-0 place-items-center rounded-[4px] font-display text-xs font-black tabular-nums',
+                      last ? 'bg-process-cyan text-white' : 'border border-white/20 text-white/70',
                     )}
                   >
                     {i + 1}
                   </span>
-                  <span className="-mt-0.5">
+                  <span>
                     <span className={cn('block text-sm font-semibold', last ? 'text-white' : 'text-white/90')}>
                       {step.name}
                     </span>
-                    <span className="block text-[13px] text-white/50">{step.text}</span>
+                    <span className="block text-[13px] leading-snug text-white/50">{step.text}</span>
                   </span>
                 </li>
               )
@@ -96,22 +98,31 @@ export default function LoginPage() {
           </ol>
         </div>
 
-        <p className="text-xs text-white/40">P12 Digital</p>
+        <div className="flex items-center justify-between">
+          <span className="flex gap-1" aria-hidden>
+            {INKS.map((c) => (
+              <span key={c} className={cn('h-2.5 w-8 rounded-[1px]', c)} />
+            ))}
+          </span>
+          <span className="text-xs text-white/40">P12 Digital</span>
+        </div>
       </aside>
 
-      <div className="flex flex-col justify-center bg-surface px-5 py-12 sm:px-10">
+      <div className="flex flex-col justify-center px-5 py-12 sm:px-10">
         <div className="mx-auto w-full max-w-sm">
           <div className="lg:hidden">
             <BrandMark tone="light" />
           </div>
 
-          <h2 className="mt-10 text-[28px] font-extrabold tracking-[-0.025em] lg:mt-0">Entrar</h2>
-          <p className="mt-1.5 text-sm text-muted">
+          <h2 className="mt-12 font-display text-[44px] font-black leading-none tracking-[-0.02em] lg:mt-0">
+            Entrar
+          </h2>
+          <p className="mt-3 text-sm text-muted">
             Acesso da equipe editorial. Depois de várias tentativas erradas o acesso fica bloqueado por
             um tempo.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit} className="mt-9 space-y-5">
             <label className="block">
               <span className="field-label">Usuário</span>
               <input
@@ -150,7 +161,7 @@ export default function LoginPage() {
               </Notice>
             )}
 
-            <Button type="submit" className="h-11 w-full" loading={loading} loadingText="Entrando…">
+            <Button type="submit" className="h-12 w-full text-[15px]" loading={loading} loadingText="Entrando…">
               Entrar
             </Button>
           </form>

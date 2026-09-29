@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-/** Superfície com padding para formulários e blocos de conteúdo. */
+/** Folha: superfície com padding para formulários e blocos de conteúdo. */
 export function Card({
   className,
   children,
@@ -9,7 +9,12 @@ export function Card({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn('rounded-xl border border-line bg-surface p-5 sm:p-6', className)}>
+    <div
+      className={cn(
+        'rounded-xl border border-line bg-surface p-5 shadow-[0_1px_0_rgb(27_31_42/0.05)] sm:p-6',
+        className,
+      )}
+    >
       {children}
     </div>
   )
@@ -23,7 +28,9 @@ export function CardTitle({
   className?: string
 }) {
   return (
-    <h2 className={cn('text-base font-semibold tracking-tight text-ink', className)}>{children}</h2>
+    <h2 className={cn('font-display text-[19px] font-bold leading-tight text-ink', className)}>
+      {children}
+    </h2>
   )
 }
 
@@ -61,13 +68,18 @@ export function Panel({
   children: React.ReactNode
 }) {
   return (
-    <section className={cn('overflow-hidden rounded-xl border border-line bg-surface', className)}>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {icon && <span className="text-muted [&_svg]:size-4">{icon}</span>}
+    <section
+      className={cn(
+        'overflow-hidden rounded-xl border border-line bg-surface shadow-[0_1px_0_rgb(27_31_42/0.05)]',
+        className,
+      )}
+    >
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="flex min-w-0 items-start gap-2.5">
+          {icon && <span className="mt-0.5 text-muted [&_svg]:size-4">{icon}</span>}
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h2>
-            {description && <p className="text-[13px] leading-snug text-muted">{description}</p>}
+            <h2 className="font-display text-[19px] font-bold leading-tight text-ink">{title}</h2>
+            {description && <p className="mt-0.5 text-[13px] leading-snug text-muted">{description}</p>}
           </div>
         </div>
         {action}

@@ -5,15 +5,16 @@ type ButtonVariant = 'default' | 'outline' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md'
 
 const base =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0'
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0'
 
 const variants: Record<ButtonVariant, string> = {
+  // Tinta preta com um fio de ciano embaixo — o "registro" da ação principal
   default:
-    'bg-brand text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(14_27_61/0.25)] hover:bg-brand-strong',
+    'bg-ink text-white shadow-[inset_0_-2px_0_rgb(var(--cyan)),0_1px_2px_rgb(27_31_42/0.25)] hover:bg-night-soft',
   outline:
-    'border border-line-strong bg-surface text-ink shadow-[0_1px_0_rgb(14_27_61/0.04)] hover:border-brand/40 hover:bg-brand-soft hover:text-brand-strong',
+    'border border-ink/20 bg-surface text-ink hover:border-ink hover:bg-surface',
   ghost: 'text-muted hover:bg-ink/[0.06] hover:text-ink',
-  danger: 'border border-red-200 bg-surface text-red-700 hover:border-red-300 hover:bg-red-50',
+  danger: 'border border-spot/30 bg-surface text-[#B42318] hover:border-spot hover:bg-spot/[0.06]',
 }
 
 const sizes: Record<ButtonSize, string> = {

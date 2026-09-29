@@ -35,7 +35,7 @@ export function ChoiceGroup<T extends string>({
               className={cn(
                 'relative flex cursor-pointer gap-3 rounded-lg border bg-surface px-4 py-3 transition-[border-color,background-color,box-shadow] duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40',
                 checked
-                  ? 'border-brand bg-brand-soft/50 shadow-[0_0_0_1px_rgb(var(--brand))]'
+                  ? 'border-ink bg-surface shadow-[0_0_0_1px_rgb(var(--ink)),inset_0_-3px_0_rgb(var(--cyan))]'
                   : 'border-line-strong hover:border-subtle',
               )}
             >
@@ -49,7 +49,7 @@ export function ChoiceGroup<T extends string>({
               />
               {opt.icon && (
                 <span
-                  className={cn('mt-0.5 shrink-0 [&_svg]:size-4', checked ? 'text-brand' : 'text-subtle')}
+                  className={cn('mt-0.5 shrink-0 [&_svg]:size-4', checked ? 'text-ink' : 'text-subtle')}
                   aria-hidden
                 >
                   {opt.icon}
@@ -64,7 +64,7 @@ export function ChoiceGroup<T extends string>({
               <span
                 className={cn(
                   'ml-auto mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border',
-                  checked ? 'border-brand bg-brand' : 'border-line-strong bg-surface',
+                  checked ? 'border-ink bg-ink' : 'border-line-strong bg-surface',
                 )}
                 aria-hidden
               >

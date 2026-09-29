@@ -1,7 +1,21 @@
 import type { ArticleStatus, ConnectionStatus } from '@publisher-p12/types'
 
-/** Tom visual compartilhado por Badge, Notice, pontos e barras de etapa. */
-export type Tone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'violet'
+/**
+ * Tom visual compartilhado por Badge, Notice, amostras e barras.
+ * cyan/magenta/yellow/key são as tintas de processo das etapas do pipeline;
+ * os demais são estados genéricos (sucesso, aviso, erro, informação).
+ */
+export type Tone =
+  | 'neutral'
+  | 'brand'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'violet'
+  | 'cyan'
+  | 'magenta'
+  | 'yellow'
+  | 'key'
 
 /** Etapas do pipeline editorial — agrupam os status do artigo. */
 export type Stage = 'producao' | 'revisao' | 'agendado' | 'publicado' | 'erro'
@@ -17,6 +31,8 @@ export const STAGES: Record<
     step: string
     description: string
     tone: Tone
+    /** Nome da tinta, mostrado na legenda da barra de cor. */
+    ink: string
     statuses: ArticleStatus[]
   }
 > = {
@@ -24,28 +40,32 @@ export const STAGES: Record<
     label: 'Produção',
     step: 'Produção',
     description: 'Briefing, geração e rascunho',
-    tone: 'violet',
+    tone: 'cyan',
+    ink: 'C',
     statuses: ['briefing', 'gerando', 'rascunho'],
   },
   revisao: {
     label: 'Revisão',
     step: 'Revisão',
     description: 'Esperando aprovação da equipe',
-    tone: 'warning',
+    tone: 'magenta',
+    ink: 'M',
     statuses: ['em_revisao', 'aprovado'],
   },
   agendado: {
     label: 'Agendados',
     step: 'Agendado',
     description: 'Com data marcada no WordPress',
-    tone: 'brand',
+    tone: 'yellow',
+    ink: 'Y',
     statuses: ['agendado'],
   },
   publicado: {
     label: 'Publicados',
     step: 'Publicado',
     description: 'No ar no site do cliente',
-    tone: 'success',
+    tone: 'key',
+    ink: 'K',
     statuses: ['publicado'],
   },
   erro: {
@@ -53,6 +73,7 @@ export const STAGES: Record<
     step: 'Erro',
     description: 'Falharam e precisam de ação',
     tone: 'danger',
+    ink: '',
     statuses: ['erro'],
   },
 }
@@ -82,7 +103,7 @@ export const CONNECTION_STATUS: Record<
   nao_testado: { label: 'Não testado', title: 'Conexão ainda não testada', tone: 'neutral' },
 }
 
-/** Classes por tom. `dot` = cor sólida (pontos, barras); `soft` = fundo + texto de badge. */
+/** Classes por tom. `dot` = cor sólida (amostras, barras); `soft` = fundo + texto de badge. */
 export const TONE_CLASSES: Record<Tone, { dot: string; soft: string; text: string; border: string }> = {
   neutral: {
     dot: 'bg-subtle',
@@ -98,26 +119,50 @@ export const TONE_CLASSES: Record<Tone, { dot: string; soft: string; text: strin
   },
   success: {
     dot: 'bg-emerald-500',
-    soft: 'bg-emerald-50 text-emerald-700',
+    soft: 'bg-emerald-50 text-emerald-800',
     text: 'text-emerald-700',
     border: 'border-emerald-200',
   },
   warning: {
     dot: 'bg-amber-500',
-    soft: 'bg-amber-50 text-amber-800',
+    soft: 'bg-amber-50 text-amber-900',
     text: 'text-amber-700',
     border: 'border-amber-200',
   },
   danger: {
-    dot: 'bg-red-500',
-    soft: 'bg-red-50 text-red-700',
-    text: 'text-red-700',
-    border: 'border-red-200',
+    dot: 'bg-spot',
+    soft: 'bg-spot/10 text-[#A3190F]',
+    text: 'text-[#B42318]',
+    border: 'border-spot/25',
   },
   violet: {
     dot: 'bg-violet-500',
     soft: 'bg-violet-50 text-violet-700',
     text: 'text-violet-700',
     border: 'border-violet-200',
+  },
+  cyan: {
+    dot: 'bg-process-cyan',
+    soft: 'bg-process-cyan/[0.12] text-[#005A80]',
+    text: 'text-[#006D99]',
+    border: 'border-process-cyan/30',
+  },
+  magenta: {
+    dot: 'bg-process-magenta',
+    soft: 'bg-process-magenta/10 text-[#A1005A]',
+    text: 'text-[#B80064]',
+    border: 'border-process-magenta/30',
+  },
+  yellow: {
+    dot: 'bg-process-yellow',
+    soft: 'bg-process-yellow/25 text-[#6B4E00]',
+    text: 'text-[#8A6500]',
+    border: 'border-process-yellow/50',
+  },
+  key: {
+    dot: 'bg-process-key',
+    soft: 'bg-process-key text-white',
+    text: 'text-ink',
+    border: 'border-ink/30',
   },
 }
