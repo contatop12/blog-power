@@ -11,6 +11,7 @@ import {
   ExternalLink,
   IdCard,
   Library,
+  LineChart,
   ListChecks,
   Paperclip,
   Plug,
@@ -25,6 +26,7 @@ import { ClientForm } from '@/components/client-form'
 import { ClientProfileForm } from '@/components/client-profile-form'
 import { MuPluginGuide } from '@/components/client-form-guides'
 import { ClientStatusIcon } from '@/components/client-status-icon'
+import { GooglePanel } from '@/components/google-panel'
 import { FieldGuide } from '@/components/field-hint'
 import { InstallBridgeButton } from '@/components/install-bridge-button'
 import { KnowledgeBasePanel } from '@/components/knowledge-base-panel'
@@ -44,7 +46,7 @@ import { PERFIL_CAMPOS, calcularCompletudeLocal, perfilVazio } from '@/lib/perfi
 import { cn } from '@/lib/utils'
 import type { Client, ConnectionCheckResult, ConnectionStatus, SeoPlugin } from '@publisher-p12/types'
 
-const ABAS = ['dados', 'perfil', 'base', 'categorias', 'materiais'] as const
+const ABAS = ['dados', 'perfil', 'base', 'google', 'categorias', 'materiais'] as const
 type Aba = (typeof ABAS)[number]
 
 /** `?tab=perfil` abre direto na aba; valor desconhecido cai em "dados". */
@@ -56,6 +58,7 @@ const ABA_ROTULO: Record<Aba, string> = {
   dados: 'Dados e WordPress',
   perfil: 'Perfil',
   base: 'Base e pautas',
+  google: 'Google',
   categorias: 'Categorias',
   materiais: 'Materiais',
 }
@@ -420,6 +423,7 @@ export default function ClientDetailPage() {
       indicator: perfilIncompleto ? <StatusDot tone="warning" label="Perfil incompleto" /> : undefined,
     },
     { value: 'base', label: ABA_ROTULO.base, icon: <Library aria-hidden /> },
+    { value: 'google', label: ABA_ROTULO.google, icon: <LineChart aria-hidden /> },
     { value: 'categorias', label: ABA_ROTULO.categorias, icon: <Tags aria-hidden /> },
     { value: 'materiais', label: ABA_ROTULO.materiais, icon: <Paperclip aria-hidden /> },
   ]
@@ -587,6 +591,7 @@ export default function ClientDetailPage() {
           )}
 
           {tab === 'base' && <KnowledgeBasePanel clientId={id} />}
+          {tab === 'google' && <GooglePanel clientId={id} />}
 
           {tab === 'categorias' && <WpCategoriesManager clientId={id} />}
 

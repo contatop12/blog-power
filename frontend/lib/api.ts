@@ -3,6 +3,8 @@ import type {
   ArticleIdea,
   ArticleIdeaStatus,
   Client,
+  ClientGoogle,
+  ClientGoogleView,
   ClientPost,
   ClientPostSummary,
   CorpusStatus,
@@ -10,10 +12,14 @@ import type {
   ClientMaterial,
   CreateWpCategoryInput,
   DashboardPayload,
+  GoogleConta,
   Job,
   LoginResult,
+  Oportunidade,
+  OportunidadeStatus,
   PerfilCliente,
   PerfilClienteView,
+  SyncOportunidadesResult,
   UpdateWpCategoryInput,
   WpAuthorOption,
   WpCategoryOption,
@@ -203,6 +209,21 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({}),
       }),
+  },
+  google: {
+    get: (clientId: string) => apiFetch<ClientGoogleView>(`/clients/${clientId}/google`),
+    salvar: (clientId: string, body: { gsc_site_url: string | null; gsc_conta: GoogleConta | null }) =>
+      apiFetch<ClientGoogle>(`/clients/${clientId}/google`, { method: 'PUT', body: JSON.stringify(body) }),
+  },
+  oportunidades: {
+    list: (clientId: string, status?: OportunidadeStatus) =>
+      apiFetch<Oportunidade[]>(`/clients/${clientId}/oportunidades${status ? `?status=${status}` : ''}`),
+    sync: (clientId: string) =>
+      apiFetch<SyncOportunidadesResult>(`/clients/${clientId}/oportunidades/sync`, { method: 'POST' }),
+    descartar: (clientId: string, oppId: string) =>
+      apiFetch<{ ok: true }>(`/clients/${clientId}/oportunidades/${oppId}/descartar`, { method: 'POST' }),
+    virarPauta: (clientId: string, oppId: string) =>
+      apiFetch<{ idea_id: string }>(`/clients/${clientId}/oportunidades/${oppId}/pauta`, { method: 'POST' }),
   },
   jobs: {
     get: (id: string) => apiFetch<Job>(`/jobs/${id}`),
