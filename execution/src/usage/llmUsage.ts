@@ -13,10 +13,10 @@ export function llmUsageRecorder(db: D1Database, ctx: LlmUsageContexto): (u: Llm
   return async (u) => {
     await db
       .prepare(
-        `INSERT INTO llm_usage (id, client_id, article_id, job_id, agente, modelo, tokens_in, tokens_out, custo_usd)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO llm_usage (id, client_id, article_id, job_id, agente, modelo, tokens_in, tokens_out, custo_usd, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(crypto.randomUUID(), ctx.clientId, ctx.articleId, ctx.jobId, ctx.agente, u.modelo, u.tokensIn, u.tokensOut, u.custoUsd)
+      .bind(crypto.randomUUID(), ctx.clientId, ctx.articleId, ctx.jobId, ctx.agente, u.modelo, u.tokensIn, u.tokensOut, u.custoUsd, new Date().toISOString())
       .run()
   }
 }

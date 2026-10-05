@@ -1064,15 +1064,18 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           ...new Set(corpus.flatMap((item) => item.categorias).filter(Boolean)),
         ]
 
-        const oportunidades = (await listOportunidades(env.DB, clientIdMsg, 'nova'))
-          .slice(0, 20)
-          .map((o) => ({
-            query: o.query,
-            page_url: o.page_url,
-            posicao: o.posicao,
-            impressoes: o.impressoes,
-            volume_mensal: o.volume_mensal,
-          }))
+        // Enriquecimento opcional: tabela ausente/erro não pode derrubar o job.
+        const oportunidades = await listOportunidades(env.DB, clientIdMsg, 'nova')
+          .then((lista) =>
+            lista.slice(0, 20).map((o) => ({
+              query: o.query,
+              page_url: o.page_url,
+              posicao: o.posicao,
+              impressoes: o.impressoes,
+              volume_mensal: o.volume_mensal,
+            })),
+          )
+          .catch(() => [])
 
         const resultado = await runPauteiro({
           onUsage: llmUsageRecorder(env.DB, {

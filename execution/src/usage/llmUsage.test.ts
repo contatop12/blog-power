@@ -10,6 +10,7 @@ describe('llmUsageRecorder', () => {
 
     const insert = db.executed[0]
     expect(insert.sql).toContain('INSERT INTO llm_usage')
-    expect(insert.binds.slice(1)).toEqual(['cli', 'art', 'job', 'redigir', 'anthropic/claude-sonnet-4-5', 1200, 300, 0.0081])
+    expect(insert.binds.slice(1)).toEqual(['cli', 'art', 'job', 'redigir', 'anthropic/claude-sonnet-4-5', 1200, 300, 0.0081, insert.binds[9]])
+    expect(String(insert.binds[9])).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/)
   })
 })

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   GoogleApiError,
   calcularQuickWins,
-  createIdeaFromOportunidade,
+  criarPautaDaOportunidade,
   getClientGoogle,
   getKeywordVolumes,
   getOportunidade,
@@ -155,8 +155,7 @@ google.post('/:id/oportunidades/:oppId/pauta', async (c) => {
   if (!opp) return c.json({ error: 'Oportunidade não encontrada' }, 404)
   if (opp.status === 'em_pauta' && opp.idea_id) return c.json({ idea_id: opp.idea_id })
 
-  const ideaId = await createIdeaFromOportunidade(c.env.DB, clientId, opp)
-  await setOportunidadeStatus(c.env.DB, clientId, opp.id, 'em_pauta', ideaId)
+  const ideaId = await criarPautaDaOportunidade(c.env.DB, clientId, opp)
   return c.json({ idea_id: ideaId })
 })
 

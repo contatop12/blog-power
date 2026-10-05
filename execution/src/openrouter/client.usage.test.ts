@@ -45,4 +45,13 @@ describe('chatCompletion — uso e custo', () => {
     })
     expect(out).toBe('ok')
   })
+
+  it('resposta vazia ainda registra o uso e depois falha', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ choices: [{ message: { content: '' } }], usage: { prompt_tokens: 50, completion_tokens: 0, cost: 0.001 } })))
+    const recebidos: LlmUsage[] = []
+    await expect(
+      chatCompletion({ apiKey: 'k', model: 'x/y', messages: [{ role: 'user', content: 'oi' }], onUsage: (u) => { recebidos.push(u) } }),
+    ).rejects.toThrow('OpenRouter: resposta vazia')
+    expect(recebidos).toEqual([{ modelo: 'x/y', tokensIn: 50, tokensOut: 0, custoUsd: 0.001 }])
+  })
 })

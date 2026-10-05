@@ -1,4 +1,5 @@
 /** Migration 009 (Radar fatia 1). Idempotente: entra no bootstrap e no applyD1Upgrades. */
+// Cópias de bootstrap omitem CHECK constraints por convenção; o DDL canônico está em schema.sql / migrations/009.
 export const RADAR_FATIA1_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS client_google (
     client_id TEXT PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,

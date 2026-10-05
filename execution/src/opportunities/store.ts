@@ -71,11 +71,11 @@ export async function saveOportunidades(
         o.impressoes, o.cliques, o.ctr, o.volume_mensal, o.concorrencia, o.score, janela.inicio, janela.fim, ts, ts,
       ),
   )
-  // Quick wins que sumiram nesta janela e ninguém tocou saem; descartadas/em pauta ficam.
+  // 'nova' que este sync não atualizou (updated_at < ts) e ninguém tocou sai; descartadas/em pauta ficam.
   statements.push(
     db
-      .prepare(`DELETE FROM opportunities WHERE client_id = ? AND tipo = '${tipo}' AND status = 'nova' AND janela_fim <> ?`)
-      .bind(clientId, janela.fim),
+      .prepare("DELETE FROM opportunities WHERE client_id = ? AND tipo = ? AND status = 'nova' AND updated_at < ?")
+      .bind(clientId, tipo, ts),
   )
 
   if (typeof db.batch === 'function') await db.batch(statements)
@@ -159,8 +159,8 @@ export function oportunidadeParaPauta(o: Oportunidade): PautaSugerida {
     tema: o.query.charAt(0).toUpperCase() + o.query.slice(1),
     kw_principal: o.query,
     kws_secundarias: [],
-    intencao: 'a definir pelo Pesquisador',
-    etapa_funil: 'a definir pelo Pesquisador',
+    intencao: '',
+    etapa_funil: '',
     angulo: 'Aprofundar um ângulo complementar ao da página que já ranqueia e linkar para ela',
     publico: '',
     extensao_alvo: 1500,
@@ -176,12 +176,34 @@ export function oportunidadeParaPauta(o: Oportunidade): PautaSugerida {
   }
 }
 
-export async function createIdeaFromOportunidade(db: D1Database, clientId: string, o: Oportunidade): Promise<string> {
+const INSERT_IDEIA =
+  "INSERT INTO article_ideas (id, client_id, tema, kw_principal, cluster, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'nova', ?)"
+
+function insertIdeia(db: D1Database, clientId: string, o: Oportunidade, id: string) {
   const pauta = oportunidadeParaPauta(o)
-  const id = crypto.randomUUID()
-  await db
-    .prepare("INSERT INTO article_ideas (id, client_id, tema, kw_principal, cluster, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'nova', ?)")
+  return db
+    .prepare(INSERT_IDEIA)
     .bind(id, clientId, pauta.tema, pauta.kw_principal, pauta.cluster || null, JSON.stringify(pauta), new Date().toISOString())
-    .run()
+}
+
+export async function createIdeaFromOportunidade(db: D1Database, clientId: string, o: Oportunidade): Promise<string> {
+  const id = crypto.randomUUID()
+  await insertIdeia(db, clientId, o, id).run()
+  return id
+}
+
+/** Cria a pauta e marca a oportunidade como em_pauta na mesma transação (db.batch). */
+export async function criarPautaDaOportunidade(db: D1Database, clientId: string, o: Oportunidade): Promise<string | null> {
+  const id = crypto.randomUUID()
+  const statements = [
+    insertIdeia(db, clientId, o, id),
+    db
+      .prepare(
+        "UPDATE opportunities SET status = 'em_pauta', idea_id = ?, updated_at = ? WHERE client_id = ? AND id = ? AND status <> 'em_pauta'",
+      )
+      .bind(id, new Date().toISOString(), clientId, o.id),
+  ]
+  if (typeof db.batch === 'function') await db.batch(statements)
+  else for (const st of statements) await st.run()
   return id
 }

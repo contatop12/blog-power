@@ -4,6 +4,7 @@ import { FakeD1 } from '../test-support/fakeD1.js'
 import type { OportunidadeCalculada } from './quickWins.js'
 import {
   createIdeaFromOportunidade,
+  criarPautaDaOportunidade,
   getClientGoogle,
   listOportunidades,
   oportunidadeParaPauta,
@@ -57,7 +58,10 @@ describe('saveOportunidades', () => {
     expect(upsert.binds.slice(-2).every((b) => ISO.test(String(b)))).toBe(true)
     const limpeza = lote.find((e) => e.sql.startsWith('DELETE FROM opportunities'))!
     expect(limpeza.sql).toContain("status = 'nova'")
-    expect(limpeza.binds).toEqual(['cli', '2026-10-02'])
+    expect(limpeza.sql).not.toContain('janela_fim')
+    const ts = String(upsert.binds[upsert.binds.length - 1])
+    expect(limpeza.binds).toEqual(['cli', 'quick_win', ts])
+    expect(limpeza.sql).toContain('updated_at < ?')
   })
 })
 
@@ -86,6 +90,8 @@ describe('pauta a partir da oportunidade', () => {
     expect(p.artigos_relacionados).toEqual(['https://abxtelecom.com.br/ti/'])
     expect(p.justificativa).toContain('posição 10,8')
     expect(p.justificativa).toContain('720 buscas/mês')
+    expect(p.intencao).toBe('')
+    expect(p.etapa_funil).toBe('')
     expect(p.risco_canibalizacao).toContain('https://abxtelecom.com.br/ti/')
   })
 
@@ -97,5 +103,21 @@ describe('pauta a partir da oportunidade', () => {
     expect(insert.binds[1]).toBe('cli')
     expect(String(insert.binds[6])).toMatch(ISO)
     expect(JSON.parse(String(insert.binds[5])).kw_principal).toBe('consultoria de ti')
+  })
+})
+
+describe('criarPautaDaOportunidade', () => {
+  it('insere a pauta e atualiza a oportunidade no mesmo batch', async () => {
+    const db = new FakeD1()
+    const id = await criarPautaDaOportunidade(db, 'cli', linha as Oportunidade)
+    expect(db.batches).toHaveLength(1)
+    const [insert, update] = db.batches[0]
+    expect(insert.sql).toContain('INSERT INTO article_ideas')
+    expect(insert.binds[0]).toBe(id)
+    expect(update.sql).toContain("status = 'em_pauta'")
+    expect(update.sql).toContain("status <> 'em_pauta'")
+    expect(update.binds[0]).toBe(id)
+    expect(update.binds.slice(2)).toEqual(['cli', 'op1'])
+    expect(db.executed).toHaveLength(0)
   })
 })
