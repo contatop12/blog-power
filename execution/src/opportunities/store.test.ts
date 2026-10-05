@@ -12,6 +12,8 @@ import {
   setOportunidadeStatus,
 } from './store.js'
 
+const ISO = /^\d{4}-\d{2}-\d{2}T.*Z$/
+
 const calc: OportunidadeCalculada = {
   query: 'consultoria de ti', query_norm: 'consultoria de ti', page_url: 'https://abxtelecom.com.br/ti/',
   posicao: 10.8, impressoes: 64, cliques: 0, ctr: 0, volume_mensal: 720, concorrencia: 'MEDIUM', score: 71,
@@ -35,7 +37,8 @@ describe('client_google', () => {
     const v = await saveClientGoogle(db, 'cli', { gsc_site_url: 'https://abxtelecom.com.br/', gsc_conta: 'contato' })
     const insert = db.executed.find((e) => e.sql.includes('INSERT INTO client_google'))!
     expect(insert.sql).toContain('ON CONFLICT(client_id) DO UPDATE')
-    expect(insert.binds).toEqual(['cli', 'https://abxtelecom.com.br/', 'contato'])
+    expect(insert.binds.slice(0, 3)).toEqual(['cli', 'https://abxtelecom.com.br/', 'contato'])
+    expect(String(insert.binds[3])).toMatch(ISO)
     expect(v.gsc_conta).toBe('contato')
   })
 })
@@ -50,6 +53,8 @@ describe('saveOportunidades', () => {
     expect(upsert.sql).toContain('ON CONFLICT(client_id, tipo, query_norm) DO UPDATE')
     const doUpdate = upsert.sql.split('DO UPDATE')[1]
     expect(doUpdate).not.toMatch(/\bstatus\b/)
+    expect(doUpdate).not.toMatch(/idea_id/)
+    expect(upsert.binds.slice(-2).every((b) => ISO.test(String(b)))).toBe(true)
     const limpeza = lote.find((e) => e.sql.startsWith('DELETE FROM opportunities'))!
     expect(limpeza.sql).toContain("status = 'nova'")
     expect(limpeza.binds).toEqual(['cli', '2026-10-02'])
@@ -67,7 +72,9 @@ describe('listOportunidades e status', () => {
   it('marca em_pauta guardando a pauta', async () => {
     const db = new FakeD1()
     expect(await setOportunidadeStatus(db, 'cli', 'op1', 'em_pauta', 'idea9')).toBe(true)
-    expect(db.executed[0].binds).toEqual(['em_pauta', 'idea9', 'cli', 'op1'])
+    expect(db.executed[0].binds.slice(0, 2)).toEqual(['em_pauta', 'idea9'])
+    expect(String(db.executed[0].binds[2])).toMatch(ISO)
+    expect(db.executed[0].binds.slice(3)).toEqual(['cli', 'op1'])
   })
 })
 
@@ -88,6 +95,7 @@ describe('pauta a partir da oportunidade', () => {
     const insert = db.executed.find((e) => e.sql.includes('INSERT INTO article_ideas'))!
     expect(insert.binds[0]).toBe(id)
     expect(insert.binds[1]).toBe('cli')
+    expect(String(insert.binds[6])).toMatch(ISO)
     expect(JSON.parse(String(insert.binds[5])).kw_principal).toBe('consultoria de ti')
   })
 })

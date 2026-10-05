@@ -1,4 +1,3 @@
-/** Statements idempotentes para bootstrap do D1 (espelho de schema.sql + migrations). */
 /** Migration 009 (Radar fatia 1). Idempotente: entra no bootstrap e no applyD1Upgrades. */
 export const RADAR_FATIA1_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS client_google (
@@ -25,6 +24,7 @@ export const RADAR_FATIA1_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_llm_usage_client ON llm_usage(client_id, created_at)`,
 ]
 
+/** Statements idempotentes para bootstrap do D1 (espelho de schema.sql + migrations). */
 export const D1_BOOTSTRAP_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY, nome TEXT NOT NULL, dominio TEXT NOT NULL,

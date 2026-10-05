@@ -26,13 +26,13 @@ export async function saveClientGoogle(
   await db
     .prepare(
       `INSERT INTO client_google (client_id, gsc_site_url, gsc_conta, updated_at)
-       VALUES (?, ?, ?, datetime('now'))
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(client_id) DO UPDATE SET
          gsc_site_url = excluded.gsc_site_url,
          gsc_conta = excluded.gsc_conta,
-         updated_at = datetime('now')`,
+         updated_at = excluded.updated_at`,
     )
-    .bind(clientId, v.gsc_site_url, v.gsc_conta)
+    .bind(clientId, v.gsc_site_url, v.gsc_conta, new Date().toISOString())
     .run()
   return getClientGoogle(db, clientId)
 }
@@ -44,13 +44,14 @@ export async function saveOportunidades(
   itens: OportunidadeCalculada[],
   tipo: OportunidadeTipo = 'quick_win',
 ): Promise<number> {
+  const ts = new Date().toISOString()
   const statements = itens.map((o) =>
     db
       .prepare(
         `INSERT INTO opportunities
            (id, client_id, tipo, query, query_norm, page_url, posicao, impressoes, cliques, ctr,
-            volume_mensal, concorrencia, score, janela_inicio, janela_fim)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            volume_mensal, concorrencia, score, janela_inicio, janela_fim, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(client_id, tipo, query_norm) DO UPDATE SET
            query = excluded.query,
            page_url = excluded.page_url,
@@ -63,11 +64,11 @@ export async function saveOportunidades(
            score = excluded.score,
            janela_inicio = excluded.janela_inicio,
            janela_fim = excluded.janela_fim,
-           updated_at = datetime('now')`,
+           updated_at = excluded.updated_at`,
       )
       .bind(
         crypto.randomUUID(), clientId, tipo, o.query, o.query_norm, o.page_url, o.posicao,
-        o.impressoes, o.cliques, o.ctr, o.volume_mensal, o.concorrencia, o.score, janela.inicio, janela.fim,
+        o.impressoes, o.cliques, o.ctr, o.volume_mensal, o.concorrencia, o.score, janela.inicio, janela.fim, ts, ts,
       ),
   )
   // Quick wins que sumiram nesta janela e ninguém tocou saem; descartadas/em pauta ficam.
@@ -141,10 +142,10 @@ export async function setOportunidadeStatus(
 ): Promise<boolean> {
   const res = await db
     .prepare(
-      `UPDATE opportunities SET status = ?, idea_id = COALESCE(?, idea_id), updated_at = datetime('now')
+      `UPDATE opportunities SET status = ?, idea_id = COALESCE(?, idea_id), updated_at = ?
        WHERE client_id = ? AND id = ?`,
     )
-    .bind(status, ideaId, clientId, id)
+    .bind(status, ideaId, new Date().toISOString(), clientId, id)
     .run()
   return (res.meta?.changes ?? 0) > 0
 }
@@ -179,8 +180,8 @@ export async function createIdeaFromOportunidade(db: D1Database, clientId: strin
   const pauta = oportunidadeParaPauta(o)
   const id = crypto.randomUUID()
   await db
-    .prepare('INSERT INTO article_ideas (id, client_id, tema, kw_principal, cluster, payload) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, clientId, pauta.tema, pauta.kw_principal, pauta.cluster || null, JSON.stringify(pauta))
+    .prepare("INSERT INTO article_ideas (id, client_id, tema, kw_principal, cluster, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'nova', ?)")
+    .bind(id, clientId, pauta.tema, pauta.kw_principal, pauta.cluster || null, JSON.stringify(pauta), new Date().toISOString())
     .run()
   return id
 }
