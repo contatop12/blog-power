@@ -4,6 +4,7 @@ import type { ApiBindings } from './bindings.js'
 import clientsRouter from './routes/clients.js'
 import materialsRouter from './routes/materials.js'
 import corpusRouter from './routes/corpus.js'
+import googleRouter from './routes/google.js'
 import articlesRouter from './routes/articles.js'
 import jobsRouter from './routes/jobs.js'
 import authRouter from './routes/auth.js'
@@ -54,6 +55,7 @@ app.route('/settings', settingsRouter)
 app.route('/clients', clientsRouter)
 app.route('/clients', materialsRouter)
 app.route('/clients', corpusRouter)
+app.route('/clients', googleRouter)
 app.route('/articles', articlesRouter)
 app.route('/jobs', jobsRouter)
 

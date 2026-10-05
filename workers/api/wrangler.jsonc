@@ -9,6 +9,7 @@
   "compatibility_flags": ["nodejs_compat_v2"],
   "vars": {
     "ENVIRONMENT": "development",
+    "GOOGLE_ADS_LOGIN_CUSTOMER_ID": "3780611396",
     "OPENROUTER_MODEL_REDATOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_EDITOR": "anthropic/claude-sonnet-4-5",
     "OPENROUTER_MODEL_IMAGEM": "anthropic/claude-sonnet-4-5",
