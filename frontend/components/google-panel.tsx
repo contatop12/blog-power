@@ -48,13 +48,15 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
 
   async function salvarVinculo() {
     setErro(null)
+    setAviso(null)
+    setResultado(null)
     setSalvando(true)
     try {
       const [conta, ...resto] = selecao.split('|')
       const site = resto.join('|')
       await api.google.salvar(clientId, selecao ? { gsc_site_url: site, gsc_conta: conta as GoogleConta } : { gsc_site_url: null, gsc_conta: null })
       await recarregar()
-      setAviso('Propriedade do Search Console vinculada.')
+      setAviso(selecao ? 'Propriedade do Search Console vinculada.' : 'Vínculo removido.')
     } catch (e) {
       setErro((e as Error).message)
     } finally {
@@ -77,6 +79,7 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
   }
 
   async function virarPauta(op: Oportunidade) {
+    setErro(null)
     setAcao(op.id)
     try {
       await api.oportunidades.virarPauta(clientId, op.id)
@@ -90,6 +93,7 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
   }
 
   async function descartar(op: Oportunidade) {
+    setErro(null)
     setAcao(op.id)
     try {
       await api.oportunidades.descartar(clientId, op.id)
@@ -105,6 +109,8 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
 
   const vinculado = Boolean(view?.vinculo.gsc_site_url)
   const selecaoAtual = view?.vinculo.gsc_site_url ? `${view.vinculo.gsc_conta}|${view.vinculo.gsc_site_url}` : ''
+  const vinculoForaDaLista =
+    Boolean(selecaoAtual) && !view?.sites_disponiveis.some((s) => `${s.conta}|${s.site_url}` === selecaoAtual)
 
   return (
     <div className="space-y-6">
@@ -119,6 +125,11 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
         <div className="flex flex-wrap items-center gap-3">
           <select id="gsc-site" className="field-input max-w-xl" value={selecao} onChange={(e) => setSelecao(e.target.value)}>
             <option value="">Nenhuma</option>
+            {vinculoForaDaLista && view?.vinculo.gsc_conta && (
+              <option value={selecaoAtual}>
+                {view.vinculo.gsc_site_url} — {ROTULO_CONTA[view.vinculo.gsc_conta]} (sem acesso no momento)
+              </option>
+            )}
             {view?.sites_disponiveis.map((s) => (
               <option key={`${s.conta}|${s.site_url}`} value={`${s.conta}|${s.site_url}`}>
                 {s.site_url} — {ROTULO_CONTA[s.conta]}

@@ -10,11 +10,11 @@ por demanda real (Keyword Planner), para virar pauta ou orientar a otimização 
 - MCC do Keyword Planner: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` = 3780611396.
 
 ## Execução
-1. `execution/src/opportunities/sync.ts` → `calcularQuickWins`: Search Console (28 dias terminando 3 dias atrás, dimensões busca × página).
-2. `quickWins.ts`: agrega variações da mesma busca, tira buscas de marca (`marcaTermos`), mantém posição 4–20 com ≥ 20 impressões, até 100.
-3. `keywordPlanner.ts`: volume mensal no Brasil, em português. Falhou? Salva sem volume e mostra o aviso — não bloqueia.
-4. Score 0–100 = 40% demanda + 35% ganho de cliques até o CTR da posição 3 (10%) + 25% proximidade do top 3.
-5. `store.ts`: upsert por (cliente, tipo, busca normalizada). Nova sincronização nunca muda o status; oportunidades `nova` que sumiram saem.
+1. `execution/src/opportunities/sync.ts` → `calcularQuickWins`: Search Console, 28 dias terminando 3 dias atrás, em DUAS chamadas: dimensão `query` (fonte de cliques, impressões, CTR e posição) e `query` × `page` (só para escolher a página com mais impressões por busca). Somar as linhas busca × página distorceria impressões e posição.
+2. `quickWins.ts` (`aggregateQueries`): agrega variações da mesma busca (acento/caixa) com posição ponderada por impressões, tira buscas de marca (`marcaTermos`; compara texto compacto, sem acento nem espaços, por "contém"), mantém posição 4–20 com ≥ 20 impressões, até 100.
+3. `keywordPlanner.ts`: volume mensal no Brasil, em português. Palavras com mais de 80 caracteres, mais de 10 palavras ou símbolos fora de letras, dígitos, espaço e `- ' . & +` são puladas (`keywordAceitaPeloAds`) porque o Ads recusaria o lote inteiro; ficam sem volume. Falhou? Salva sem volume e mostra o aviso — não bloqueia.
+4. Score 0–100 = 40% demanda (volume mensal; sem volume, as impressões dos 28 dias) + 35% ganho de cliques até o CTR da posição 3 (10%) + 25% proximidade do top 3.
+5. `store.ts`: upsert por (cliente, tipo, busca normalizada). Nova sincronização nunca muda o status; a limpeza apaga só as `nova` que esta sincronização não atualizou (`updated_at` anterior ao horário do lote); `descartada` e `em_pauta` ficam. "Virar pauta" cria a pauta e muda o status na mesma transação (`criarPautaDaOportunidade`).
 
 ## Saídas
 - Tabela `opportunities`; aba **Google** do cliente; botão "Virar pauta" cria `article_ideas` com justificativa e a página que já ranqueia em `artigos_relacionados`.
