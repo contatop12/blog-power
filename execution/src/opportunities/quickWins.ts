@@ -48,6 +48,30 @@ export function aggregateByQuery(rows: GscRow[]): QueryAgg[] {
   }))
 }
 
+/**
+ * Métricas vêm só das linhas por consulta (dimensions ['query']); somar linhas query×página
+ * contaria a mesma impressão em várias páginas e distorceria a posição. A página é a de maior
+ * impressão para a consulta nas linhas query×página.
+ */
+export function aggregateQueries(queryRows: GscRow[], pageRows: GscRow[]): QueryAgg[] {
+  const porConsulta = new Map<string, Map<string, number>>()
+  for (const row of pageRows) {
+    const [query = '', page = ''] = row.keys
+    const norm = normalizeKeyword(query)
+    if (!norm || !page) continue
+    const paginas = porConsulta.get(norm) ?? new Map<string, number>()
+    paginas.set(page, (paginas.get(page) ?? 0) + row.impressions)
+    porConsulta.set(norm, paginas)
+  }
+  const melhorPagina = (norm: string): string | null =>
+    [...(porConsulta.get(norm)?.entries() ?? [])].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+  return aggregateByQuery(queryRows.map((row) => ({ ...row, keys: [row.keys[0] ?? ''] }))).map((a) => ({
+    ...a,
+    page: melhorPagina(a.queryNorm),
+  }))
+}
+
 const compacto = (s: string) => normalizeKeyword(s).replace(/[^a-z0-9]/g, '')
 
 /** Sufixos que não identificam a marca (com.br, adv.br, net, ...). */

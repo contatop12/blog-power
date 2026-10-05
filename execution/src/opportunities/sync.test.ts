@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GscRow } from '../google/searchConsole.js'
+import type { GscQuery, GscRow } from '../google/searchConsole.js'
 import type { KeywordVolume } from '../google/keywordPlanner.js'
 import { calcularQuickWins } from './sync.js'
 
@@ -9,9 +9,13 @@ const ROWS: GscRow[] = [
   { keys: ['fibra óptica', 'https://abx/fibra'], clicks: 9, impressions: 300, ctr: 0.03, position: 2.1 },
 ]
 
+/** Responde por dimensions: consulta (1 chave) ou consulta×página (2 chaves). */
+const porDimensao = async (_site: string, q: GscQuery) =>
+  q.dimensions?.length === 1 ? ROWS.map((r) => ({ ...r, keys: [r.keys[0]] })) : ROWS
+
 describe('calcularQuickWins', () => {
   it('consulta a janela de 28 dias, tira marca e top 3 e junta volume', async () => {
-    const queryGsc = vi.fn(async () => ROWS)
+    const queryGsc = vi.fn(porDimensao)
     const getVolumes = vi.fn(async (kws: string[]) => {
       expect(kws).toEqual(['consultoria de ti'])
       return new Map<string, KeywordVolume>([['consultoria de ti', { keyword: 'consultoria de ti', volumeMensal: 720, concorrencia: 'MEDIUM' }]])
@@ -19,6 +23,10 @@ describe('calcularQuickWins', () => {
 
     const out = await calcularQuickWins('https://abxtelecom.com.br/', { queryGsc, getVolumes, today: new Date('2026-10-05T12:00:00Z') }, { marca: ['abxtelecom'] })
 
+    expect(queryGsc).toHaveBeenCalledTimes(2)
+    expect(queryGsc).toHaveBeenCalledWith('https://abxtelecom.com.br/', {
+      startDate: '2026-09-05', endDate: '2026-10-02', dimensions: ['query'], maxRows: 50_000,
+    })
     expect(queryGsc).toHaveBeenCalledWith('https://abxtelecom.com.br/', {
       startDate: '2026-09-05', endDate: '2026-10-02', dimensions: ['query', 'page'], maxRows: 50_000,
     })
@@ -26,12 +34,13 @@ describe('calcularQuickWins', () => {
     expect(out.queriesAnalisadas).toBe(3)
     expect(out.oportunidades.map((o) => o.query)).toEqual(['consultoria de ti'])
     expect(out.oportunidades[0].volume_mensal).toBe(720)
+    expect(out.oportunidades[0].page_url).toBe('https://abx/ti')
     expect(out.kpErro).toBeNull()
   })
 
   it('Keyword Planner falhando não derruba a sincronização', async () => {
     const out = await calcularQuickWins('https://abxtelecom.com.br/', {
-      queryGsc: async () => ROWS,
+      queryGsc: porDimensao,
       getVolumes: async () => { throw new Error('Keyword Planner: projeto só aprovado para contas de teste') },
       today: new Date('2026-10-05T12:00:00Z'),
     }, { marca: ['abxtelecom'] })
@@ -42,7 +51,7 @@ describe('calcularQuickWins', () => {
   })
 
   it('sem Keyword Planner configurado segue sem volume', async () => {
-    const out = await calcularQuickWins('https://x/', { queryGsc: async () => ROWS, getVolumes: null, today: new Date('2026-10-05T12:00:00Z') })
+    const out = await calcularQuickWins('https://x/', { queryGsc: porDimensao, getVolumes: null, today: new Date('2026-10-05T12:00:00Z') })
     expect(out.kpErro).toBe('Keyword Planner não configurado')
     expect(out.oportunidades.every((o) => o.volume_mensal === null)).toBe(true)
   })

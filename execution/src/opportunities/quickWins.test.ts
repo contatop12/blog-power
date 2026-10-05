@@ -3,6 +3,7 @@ import type { GscRow } from '../google/searchConsole.js'
 import type { KeywordVolume } from '../google/keywordPlanner.js'
 import {
   aggregateByQuery,
+  aggregateQueries,
   buildOportunidades,
   isMarca,
   marcaTermos,
@@ -18,6 +19,40 @@ function r(query: string, page: string, impressions: number, position: number, c
 function agg(over: Partial<QueryAgg> = {}): QueryAgg {
   return { query: 'consultoria de ti', queryNorm: 'consultoria de ti', page: 'https://abx/ti', clicks: 0, impressions: 100, ctr: 0, position: 10, ...over }
 }
+
+function q(query: string, impressions: number, position: number, clicks = 0): GscRow {
+  return { keys: [query], clicks, impressions, ctr: impressions ? clicks / impressions : 0, position }
+}
+
+describe('aggregateQueries', () => {
+  it('métricas vêm da linha por consulta, não da média das páginas', () => {
+    const out = aggregateQueries(
+      [q('consultoria de ti', 100, 2, 10)],
+      [r('consultoria de ti', 'https://abx/a', 50, 2), r('consultoria de ti', 'https://abx/b', 50, 15)],
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].position).toBe(2)
+    expect(out[0].impressions).toBe(100)
+    expect(out[0].clicks).toBe(10)
+    expect(selectQuickWins(out)).toEqual([])
+  })
+
+  it('escolhe a página com mais impressões e junta variantes de acento/caixa', () => {
+    const out = aggregateQueries(
+      [q('Comunicação unificada', 60, 8), q('comunicacao unificada', 40, 12)],
+      [r('comunicação unificada', 'https://abx/a', 10, 8), r('Comunicacao unificada', 'https://abx/b', 70, 9), r('comunicação unificada', 'https://abx/a', 5, 8)],
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].query).toBe('Comunicação unificada')
+    expect(out[0].page).toBe('https://abx/b')
+    expect(out[0].impressions).toBe(100)
+    expect(out[0].position).toBeCloseTo(9.6, 5)
+  })
+
+  it('sem linha de página a página é null', () => {
+    expect(aggregateQueries([q('voip', 30, 6)], [])[0].page).toBeNull()
+  })
+})
 
 describe('aggregateByQuery', () => {
   it('junta variações de acento/caixa, soma impressões e pondera a posição', () => {

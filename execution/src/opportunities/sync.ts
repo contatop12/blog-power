@@ -1,7 +1,7 @@
 /** Search Console → quick wins → Keyword Planner. Dependências injetadas para testar sem rede. */
 import { gscWindow, type GscQuery, type GscRow } from '../google/searchConsole.js'
 import type { KeywordVolume } from '../google/keywordPlanner.js'
-import { aggregateByQuery, buildOportunidades, selectQuickWins, type OportunidadeCalculada } from './quickWins.js'
+import { aggregateQueries, buildOportunidades, selectQuickWins, type OportunidadeCalculada } from './quickWins.js'
 
 export interface SyncDeps {
   queryGsc: (siteUrl: string, q: GscQuery) => Promise<GscRow[]>
@@ -23,9 +23,13 @@ export async function calcularQuickWins(
   opts: { marca?: string[]; limite?: number } = {},
 ): Promise<QuickWinsCalculados> {
   const { startDate, endDate } = gscWindow(deps.today ?? new Date())
-  const rows = await deps.queryGsc(siteUrl, { startDate, endDate, dimensions: ['query', 'page'], maxRows: 50_000 })
+  const janela = { startDate, endDate }
+  const [queryRows, pageRows] = await Promise.all([
+    deps.queryGsc(siteUrl, { ...janela, dimensions: ['query'], maxRows: 50_000 }),
+    deps.queryGsc(siteUrl, { ...janela, dimensions: ['query', 'page'], maxRows: 50_000 }),
+  ])
 
-  const aggs = aggregateByQuery(rows)
+  const aggs = aggregateQueries(queryRows, pageRows)
   const candidatos = selectQuickWins(aggs, { marca: opts.marca, limite: opts.limite ?? 100 })
 
   let volumes = new Map<string, KeywordVolume>()
