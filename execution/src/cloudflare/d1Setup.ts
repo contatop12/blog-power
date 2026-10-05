@@ -7,6 +7,7 @@ import {
   D1_BOOTSTRAP_STATEMENTS,
   JOBS_TIPO_UPGRADE_STATEMENTS,
   JOBS_UPGRADE_STATEMENTS,
+  RADAR_FATIA1_STATEMENTS,
   REQUIRED_TABLES,
 } from './migrations.js'
 
@@ -123,6 +124,12 @@ export async function applyD1Upgrades(db: D1Database): Promise<{ applied: number
 
   await db.prepare(AGENTES_SETTINGS_STATEMENT).run()
   applied++
+
+  // Migration 009: Radar fatia 1 (tabelas novas, idempotente)
+  for (const sql of RADAR_FATIA1_STATEMENTS) {
+    await db.prepare(sql).run()
+    applied++
+  }
 
   return { applied }
 }

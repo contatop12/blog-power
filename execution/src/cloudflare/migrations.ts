@@ -1,4 +1,30 @@
 /** Statements idempotentes para bootstrap do D1 (espelho de schema.sql + migrations). */
+/** Migration 009 (Radar fatia 1). Idempotente: entra no bootstrap e no applyD1Upgrades. */
+export const RADAR_FATIA1_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS client_google (
+    client_id TEXT PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+    gsc_site_url TEXT, gsc_conta TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS opportunities (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'quick_win', query TEXT NOT NULL, query_norm TEXT NOT NULL,
+    page_url TEXT, posicao REAL NOT NULL, impressoes INTEGER NOT NULL, cliques INTEGER NOT NULL,
+    ctr REAL NOT NULL, volume_mensal INTEGER, concorrencia TEXT, score INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'nova', janela_inicio TEXT NOT NULL, janela_fim TEXT NOT NULL,
+    idea_id TEXT REFERENCES article_ideas(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(client_id, tipo, query_norm))`,
+  `CREATE INDEX IF NOT EXISTS idx_opportunities_client ON opportunities(client_id, status, score DESC)`,
+  `CREATE TABLE IF NOT EXISTS llm_usage (
+    id TEXT PRIMARY KEY, client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+    article_id TEXT REFERENCES articles(id) ON DELETE SET NULL, job_id TEXT,
+    agente TEXT NOT NULL, modelo TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL DEFAULT 0, tokens_out INTEGER NOT NULL DEFAULT 0, custo_usd REAL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE INDEX IF NOT EXISTS idx_llm_usage_client ON llm_usage(client_id, created_at)`,
+]
+
 export const D1_BOOTSTRAP_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY, nome TEXT NOT NULL, dominio TEXT NOT NULL,
@@ -82,6 +108,7 @@ export const D1_BOOTSTRAP_STATEMENTS: string[] = [
     article_id TEXT REFERENCES articles(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE INDEX IF NOT EXISTS idx_article_ideas_client ON article_ideas(client_id, status)`,
+  ...RADAR_FATIA1_STATEMENTS,
 ]
 
 /** Migration 007 (backfill): posts do corpus entram no inventário de links. Idempotente. */
@@ -190,4 +217,7 @@ export const REQUIRED_TABLES = [
   'auth_attempts',
   'client_posts',
   'article_ideas',
+  'client_google',
+  'opportunities',
+  'llm_usage',
 ] as const

@@ -854,6 +854,67 @@ export interface SuggestPautasResult {
   corpus_truncado: boolean
 }
 
+// ---------------------------------------------------------------------------
+// Radar — Google (Search Console) e oportunidades
+// ---------------------------------------------------------------------------
+
+/** Conta Google da agência que enxerga a propriedade. contato = GOOGLE_ADS_*, ryan = GOOGLE_DATA_*. */
+export type GoogleConta = 'contato' | 'ryan'
+
+export interface ClientGoogle {
+  client_id: string
+  gsc_site_url: string | null
+  gsc_conta: GoogleConta | null
+  updated_at: string | null
+}
+
+export interface GscSiteOption {
+  site_url: string
+  conta: GoogleConta
+  permissao: string
+}
+
+export interface ClientGoogleView {
+  vinculo: ClientGoogle
+  sites_disponiveis: GscSiteOption[]
+  /** Falha ao listar sites de uma conta (ex.: token revogado) — a outra conta continua aparecendo. */
+  erros: Array<{ conta: GoogleConta; erro: string }>
+}
+
+export type OportunidadeTipo = 'quick_win'
+export type OportunidadeStatus = 'nova' | 'em_pauta' | 'descartada'
+
+export interface Oportunidade {
+  id: string
+  client_id: string
+  tipo: OportunidadeTipo
+  query: string
+  page_url: string | null
+  posicao: number
+  impressoes: number
+  cliques: number
+  ctr: number
+  volume_mensal: number | null
+  concorrencia: string | null
+  score: number
+  status: OportunidadeStatus
+  janela_inicio: string
+  janela_fim: string
+  idea_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SyncOportunidadesResult {
+  janela: { inicio: string; fim: string }
+  queries_analisadas: number
+  quick_wins: number
+  com_volume: number
+  /** Keyword Planner falhou: as oportunidades foram salvas sem volume. */
+  keyword_planner_erro: string | null
+  duration_ms: number
+}
+
 // Metadados dos campos do perfil do cliente (fonte única para UI, API e prompts).
 // Sem extensão de propósito: este pacote é consumido como fonte TS pelo webpack do Next,
 // que não mapeia `.js` para `.ts`. esbuild (wrangler), Vite e tsc (bundler) resolvem igual.
