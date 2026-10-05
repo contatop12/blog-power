@@ -24,6 +24,7 @@ Credenciais **não** são editáveis na UI. Configure apenas via Worker secrets 
 - `ENCRYPTION_KEY` — criptografia de senhas WP
 - `OPENROUTER_API_KEY` — agentes LLM
 - `EVOLUTION_*` — notificações WhatsApp (pipeline)
+- `GOOGLE_ADS_*` / `GOOGLE_DATA_*` — contas Google da agência (Search Console, Keyword Planner). `GOOGLE_ADS_LOGIN_CUSTOMER_ID` é var no `wrangler.jsonc`.
 
 O login em `/login` tem limite de **5 tentativas / 15 min** com bloqueio de 30 min.
 

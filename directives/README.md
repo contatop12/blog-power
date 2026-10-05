@@ -52,3 +52,4 @@ escreve só a sua fatia. O Revisor é read-only sobre `conteudo_md` — ele grav
 | `validar_links.md` | Validação HTTP de links internos |
 | `publicar_wordpress.md` | Publicador WordPress (PRD §8) |
 | `testar_conexao.md` | Checklist de onboarding do cliente |
+| `oportunidades_google.md` | Quick wins do Search Console + volume do Keyword Planner |
