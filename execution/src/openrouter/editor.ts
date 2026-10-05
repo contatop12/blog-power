@@ -2,7 +2,7 @@ import type { Briefing, GeoJson, PesquisaDossie, SeoJson } from '@publisher-p12/
 import { renderPesquisaParaPrompt } from '../skill/dossie.js'
 import { renderPerfilParaPrompt } from '../skill/perfil.js'
 import { buildSystemPrompt } from '../skill/skill.js'
-import { chatJson } from './client.js'
+import { chatJson, type OpenRouterOptions } from './client.js'
 
 /** Artigo já publicado, próximo do tema, com o trecho que justifica o link. */
 export interface LinkCandidato {
@@ -25,6 +25,8 @@ export interface EditorInput {
   seoPlugin: 'yoast' | 'rankmath' | 'nenhum'
   apiKey: string
   model?: string
+  /** Registro de custo da chamada (ver llmUsageRecorder). */
+  onUsage?: OpenRouterOptions['onUsage']
 }
 
 export interface EditorOutput {
@@ -80,5 +82,6 @@ export async function runEditor(input: EditorInput): Promise<EditorOutput> {
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Editor',
+    onUsage: input.onUsage,
   })
 }

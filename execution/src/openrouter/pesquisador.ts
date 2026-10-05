@@ -2,7 +2,7 @@ import type { Briefing, PesquisaDossie } from '@publisher-p12/types'
 import { normalizePesquisa } from '../skill/dossie.js'
 import { buildSystemPrompt } from '../skill/skill.js'
 import { renderPerfilParaPrompt } from '../skill/perfil.js'
-import { chatJson } from './client.js'
+import { chatJson, type OpenRouterOptions } from './client.js'
 
 /** Artigo publicado pelo cliente, compactado para a checagem de canibalização. */
 export interface InventarioItem {
@@ -21,6 +21,8 @@ export interface PesquisadorInput {
   inventario: InventarioItem[]
   apiKey: string
   model?: string
+  /** Registro de custo da chamada (ver llmUsageRecorder). */
+  onUsage?: OpenRouterOptions['onUsage']
 }
 
 /** Teto do inventário no prompt: o Pesquisador precisa de cobertura, não do texto inteiro. */
@@ -69,6 +71,7 @@ export async function runPesquisador(input: PesquisadorInput): Promise<Pesquisad
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Pesquisador',
+    onUsage: input.onUsage,
   })
 
   const pesquisa = normalizePesquisa(output)

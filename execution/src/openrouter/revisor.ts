@@ -3,7 +3,7 @@ import { renderPesquisaParaPrompt } from '../skill/dossie.js'
 import { renderPerfilParaPrompt } from '../skill/perfil.js'
 import { buildSystemPrompt } from '../skill/skill.js'
 import { normalizeQa } from '../skill/qa.js'
-import { chatJson } from './client.js'
+import { chatJson, type OpenRouterOptions } from './client.js'
 
 export interface RevisorInput {
   conteudoMd: string
@@ -16,6 +16,8 @@ export interface RevisorInput {
   rodada: number
   apiKey: string
   model?: string
+  /** Registro de custo da chamada (ver llmUsageRecorder). */
+  onUsage?: OpenRouterOptions['onUsage']
 }
 
 const FORMATO = `Retorne JSON com exatamente estas chaves:
@@ -58,6 +60,7 @@ export async function runRevisor(input: RevisorInput): Promise<QaReport> {
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Revisor',
+    onUsage: input.onUsage,
   })
 
   // O veredito é recalculado a partir do score: o modelo não decide se passa

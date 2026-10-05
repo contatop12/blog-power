@@ -3,7 +3,7 @@ import { renderPesquisaParaPrompt } from '../skill/dossie.js'
 import { renderPerfilParaPrompt } from '../skill/perfil.js'
 import { renderCorrecoesParaPrompt } from '../skill/qa.js'
 import { buildSystemPrompt } from '../skill/skill.js'
-import { chatCompletion } from './client.js'
+import { chatCompletion, type OpenRouterOptions } from './client.js'
 
 export interface RedatorInput {
   briefing: Briefing
@@ -19,6 +19,8 @@ export interface RedatorInput {
   artigosIrmaos: string[]
   apiKey: string
   model?: string
+  /** Registro de custo da chamada (ver llmUsageRecorder). */
+  onUsage?: OpenRouterOptions['onUsage']
 }
 
 const FORMATO = `Devolva SOMENTE o Markdown do artigo, sem cercas de código, sem comentário e
@@ -58,5 +60,6 @@ export async function runRedator(input: RedatorInput): Promise<string> {
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Redator',
+    onUsage: input.onUsage,
   })
 }

@@ -52,6 +52,7 @@ import {
   removeInvalidLinksFromMarkdown,
   resolveEvolutionConfig,
   resolveOpenRouterApiKey,
+  llmUsageRecorder,
   runEditor,
   runPauteiro,
   runPesquisador,
@@ -392,6 +393,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         })
 
         const { pesquisa, pendencias } = await runPesquisador({
+          onUsage: llmUsageRecorder(env.DB, {
+            clientId: client.id,
+            articleId: articleId || null,
+            jobId,
+            agente: tipo,
+          }),
           briefing,
           perfil: JSON.parse(client.perfil_marca ?? 'null'),
           inventario: relevantes.map((r) => ({
@@ -456,6 +463,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         )
 
         const conteudoMd = await runRedator({
+          onUsage: llmUsageRecorder(env.DB, {
+            clientId: client.id,
+            articleId: articleId || null,
+            jobId,
+            agente: tipo,
+          }),
           briefing,
           perfil: JSON.parse(client.perfil_marca ?? 'null'),
           pesquisa: dossie.pesquisa,
@@ -553,6 +566,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
               ]
 
         const output = await runEditor({
+          onUsage: llmUsageRecorder(env.DB, {
+            clientId: client.id,
+            articleId: articleId || null,
+            jobId,
+            agente: tipo,
+          }),
           conteudoMd: article.conteudo_md,
           briefing,
           perfil: JSON.parse(client.perfil_marca ?? 'null'),
@@ -780,6 +799,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         const rodada = payloadRevisor.rodada ?? dossieRevisor.rodada
 
         const qa = await runRevisor({
+          onUsage: llmUsageRecorder(env.DB, {
+            clientId: client.id,
+            articleId: articleId || null,
+            jobId,
+            agente: tipo,
+          }),
           conteudoMd: article.conteudo_md,
           briefing: JSON.parse(article.briefing) as Briefing,
           perfil: JSON.parse(client.perfil_marca ?? 'null'),
@@ -1039,6 +1064,12 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
         ]
 
         const resultado = await runPauteiro({
+          onUsage: llmUsageRecorder(env.DB, {
+            clientId: clientIdMsg,
+            articleId: articleId || null,
+            jobId,
+            agente: tipo,
+          }),
           corpus,
           perfil: client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
           categorias,

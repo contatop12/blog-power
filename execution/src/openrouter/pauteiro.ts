@@ -2,7 +2,7 @@ import type { PautaSugerida, SuggestPautasResult } from '@publisher-p12/types'
 import type { CorpusPromptItem } from '../corpus/store.js'
 import { renderPerfilParaPrompt } from '../skill/perfil.js'
 import { buildSystemPrompt } from '../skill/skill.js'
-import { chatJson } from './client.js'
+import { chatJson, type OpenRouterOptions } from './client.js'
 
 /** Teto de caracteres do inventário enviado ao modelo (~30k tokens). */
 export const MAX_DIGEST_CHARS = 120_000
@@ -45,6 +45,8 @@ export interface PauteiroInput {
   foco?: string
   apiKey: string
   model?: string
+  /** Registro de custo da chamada (ver llmUsageRecorder). */
+  onUsage?: OpenRouterOptions['onUsage']
 }
 
 const FORMATO = `Chaves do inventário: t=título, u=url, c=categorias, d=data, w=palavras, e=resumo.
@@ -169,6 +171,7 @@ export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasRe
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Pauteiro',
+    onUsage: input.onUsage,
   })
 
   return {
