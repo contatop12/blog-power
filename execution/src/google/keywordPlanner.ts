@@ -33,10 +33,21 @@ interface HistoricalMetricsResponse {
 export function normalizeKeyword(k: string): string {
   return k
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/**
+ * O Google Ads recusa o lote inteiro se uma palavra tiver > 80 caracteres, > 10 palavras
+ * ou símbolos fora de letras, dígitos, espaço e - ' . & +. Essas ficam sem volume.
+ */
+export function keywordAceitaPeloAds(k: string): boolean {
+  const t = k.trim()
+  if (!t || t.length > 80) return false
+  if (t.split(/\s+/).length > 10) return false
+  return /^[\p{L}\p{N}\s\-'.&+]+$/u.test(t)
 }
 
 const soDigitos = (id: string) => id.replace(/\D/g, '')
@@ -52,7 +63,7 @@ export async function getKeywordVolumes(
   const vistas = new Set<string>()
   for (const k of keywords) {
     const norm = normalizeKeyword(k)
-    if (!norm || vistas.has(norm)) continue
+    if (!norm || vistas.has(norm) || !keywordAceitaPeloAds(k)) continue
     vistas.add(norm)
     unicas.push(k.trim())
   }

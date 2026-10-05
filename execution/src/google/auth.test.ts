@@ -55,6 +55,14 @@ describe('getGoogleAccessToken', () => {
     expect((err as GoogleApiError).message).not.toContain('refresh-secreto')
     expect((err as GoogleApiError).reason).toBe('invalid_grant')
   })
+
+  it('200 sem access_token vira erro e não entra no cache', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ expires_in: 3599 })))
+    const err = await getGoogleAccessToken(CREDS).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(GoogleApiError)
+    expect((err as GoogleApiError).message).toBe('OAuth Google: resposta sem access_token')
+    expect((err as GoogleApiError).status).toBe(200)
+  })
 })
 
 describe('googleErrorFromResponse', () => {

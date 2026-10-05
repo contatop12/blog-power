@@ -104,8 +104,9 @@ export async function getGoogleAccessToken(creds: GoogleCredentials, now = Date.
   })
   if (!res.ok) throw await googleErrorFromResponse(res, 'OAuth Google')
 
-  const data = (await res.json()) as { access_token: string; expires_in: number }
-  tokenCache.set(creds.refreshToken, { token: data.access_token, expiresAt: now + data.expires_in * 1000 })
+  const data = (await res.json()) as { access_token?: string; expires_in?: number }
+  if (!data.access_token) throw new GoogleApiError('OAuth Google: resposta sem access_token', res.status, null)
+  tokenCache.set(creds.refreshToken, { token: data.access_token, expiresAt: now + (data.expires_in ?? 3600) * 1000 })
   return data.access_token
 }
 
