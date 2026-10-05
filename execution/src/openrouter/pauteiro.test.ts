@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CorpusPromptItem } from '../corpus/store.js'
-import { buildCorpusDigest, normalizePautas } from './pauteiro.js'
+import { buildCorpusDigest, buildPauteiroUserMessage, normalizePautas } from './pauteiro.js'
 
 function item(i: number, overrides: Partial<CorpusPromptItem> = {}): CorpusPromptItem {
   return {
@@ -101,5 +101,27 @@ describe('normalizePautas', () => {
       'https://exemplo.com/a/',
       'http://exemplo.com/b/',
     ])
+  })
+})
+
+describe('buildPauteiroUserMessage', () => {
+  const base = { corpus: [], perfil: null, apiKey: 'k' }
+
+  it('inclui a demanda do Google e a instrução de priorizar quando há oportunidades', () => {
+    const msg = buildPauteiroUserMessage(
+      { ...base, oportunidades: [{ query: 'consultoria de ti', page_url: 'https://abx/ti', posicao: 10.8, impressoes: 64, volume_mensal: 720 }] },
+      5,
+      [],
+      false,
+    )
+    expect(msg).toContain('"demanda_google"')
+    expect(msg).toContain('consultoria de ti')
+    expect(msg).toContain('priorize')
+  })
+
+  it('sem oportunidades mantém a mensagem antiga', () => {
+    const msg = buildPauteiroUserMessage(base, 5, [], false)
+    expect(msg.startsWith('Proponha 5 pautas novas:')).toBe(true)
+    expect(msg).not.toContain('demanda_google')
   })
 })

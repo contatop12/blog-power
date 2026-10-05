@@ -52,6 +52,7 @@ import {
   removeInvalidLinksFromMarkdown,
   resolveEvolutionConfig,
   resolveOpenRouterApiKey,
+  listOportunidades,
   llmUsageRecorder,
   runEditor,
   runPauteiro,
@@ -1063,6 +1064,16 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
           ...new Set(corpus.flatMap((item) => item.categorias).filter(Boolean)),
         ]
 
+        const oportunidades = (await listOportunidades(env.DB, clientIdMsg, 'nova'))
+          .slice(0, 20)
+          .map((o) => ({
+            query: o.query,
+            page_url: o.page_url,
+            posicao: o.posicao,
+            impressoes: o.impressoes,
+            volume_mensal: o.volume_mensal,
+          }))
+
         const resultado = await runPauteiro({
           onUsage: llmUsageRecorder(env.DB, {
             clientId: clientIdMsg,
@@ -1070,6 +1081,7 @@ async function processJob(env: PipelineBindings, msg: QueueMessage): Promise<voi
             jobId,
             agente: tipo,
           }),
+          oportunidades,
           corpus,
           perfil: client.perfil_marca ? JSON.parse(client.perfil_marca) : null,
           categorias,

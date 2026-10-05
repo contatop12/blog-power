@@ -33,6 +33,15 @@ export interface CorpusDigest {
   truncado: boolean
 }
 
+/** Busca real do Search Console (quick win) que o Pauteiro deve considerar. */
+export interface OportunidadePrompt {
+  query: string
+  page_url: string | null
+  posicao: number
+  impressoes: number
+  volume_mensal: number | null
+}
+
 export interface PauteiroInput {
   corpus: CorpusPromptItem[]
   /** PerfilCliente cru; a renderização acontece aqui dentro. */
@@ -43,6 +52,8 @@ export interface PauteiroInput {
   pautasExistentes?: string[]
   quantidade?: number
   foco?: string
+  /** Quick wins do Search Console com volume do Keyword Planner — demanda medida, não estimada. */
+  oportunidades?: OportunidadePrompt[]
   apiKey: string
   model?: string
   /** Registro de custo da chamada (ver llmUsageRecorder). */
@@ -146,18 +157,38 @@ export function normalizePautas(raw: unknown, limite: number): PautaSugerida[] {
   return pautas
 }
 
-export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasResult> {
-  const quantidade = Math.min(Math.max(input.quantidade ?? 5, 1), 15)
-  const { digest, truncado } = buildCorpusDigest(input.corpus)
+const INSTRUCAO_DEMANDA =
+  'Em "demanda_google" estão buscas reais do Google em que o site já aparece entre as posições 4 e 20 ' +
+  '(impressões dos últimos 28 dias e volume mensal do Keyword Planner). Quando fizer sentido, priorize pautas ' +
+  'que atendam essas buscas, sem competir com a página que já ranqueia: proponha um ângulo complementar e ' +
+  'inclua essa página em artigos_relacionados.'
 
+export function buildPauteiroUserMessage(
+  input: PauteiroInput,
+  quantidade: number,
+  digest: DigestItem[],
+  truncado: boolean,
+): string {
+  const oportunidades = input.oportunidades ?? []
   const userContent = JSON.stringify({
     quantidade,
     foco: input.foco ?? null,
     categorias_wp: input.categorias ?? [],
     pautas_ja_sugeridas: input.pautasExistentes ?? [],
+    ...(oportunidades.length > 0 ? { demanda_google: oportunidades } : {}),
     corpus_truncado: truncado,
     inventario_publicado: digest,
   })
+  const pedido = `Proponha ${quantidade} pautas novas:
+${userContent}`
+  return oportunidades.length > 0 ? `${pedido}
+
+${INSTRUCAO_DEMANDA}` : pedido
+}
+
+export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasResult> {
+  const quantidade = Math.min(Math.max(input.quantidade ?? 5, 1), 15)
+  const { digest, truncado } = buildCorpusDigest(input.corpus)
 
   const output = await chatJson<{ pautas?: unknown }>({
     apiKey: input.apiKey,
@@ -167,7 +198,7 @@ export async function runPauteiro(input: PauteiroInput): Promise<SuggestPautasRe
         role: 'system',
         content: `${buildSystemPrompt('pauteiro', renderPerfilParaPrompt(input.perfil))}\n\n---\n\n${FORMATO}`,
       },
-      { role: 'user', content: `Proponha ${quantidade} pautas novas:\n${userContent}` },
+      { role: 'user', content: buildPauteiroUserMessage(input, quantidade, digest, truncado) },
     ],
     referer: 'https://publisher.p12.digital',
     title: 'Publisher P12 Pauteiro',
