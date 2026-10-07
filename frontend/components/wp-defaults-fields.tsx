@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { useId } from 'react'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Notice } from '@/components/ui/notice'
 import { WpCategorySelect } from '@/components/wp-category-select'
-import { api } from '@/lib/api'
-import type { WpAuthorOption } from '@publisher-p12/types'
+import { queries } from '@/lib/api'
+import { useQuery } from '@/lib/query'
 
 interface WpDefaultsFieldsProps {
   clientId: string
@@ -24,15 +24,9 @@ export function WpDefaultsFields({
   onAutorChange,
 }: WpDefaultsFieldsProps) {
   const authorSelectId = useId()
-  const [authors, setAuthors] = useState<WpAuthorOption[]>([])
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    api.clients
-      .wpAuthors(clientId)
-      .then(setAuthors)
-      .catch((e: Error) => setError(e.message))
-  }, [clientId])
+  const authorsQuery = useQuery(queries.wpAuthors(clientId))
+  const authors = authorsQuery.data ?? []
+  const error = authorsQuery.data ? null : (authorsQuery.error?.message ?? null)
 
   return (
     <Card>

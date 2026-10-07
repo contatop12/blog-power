@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { WpCategoryFormDialog } from '@/components/wp-category-form-dialog'
-import { api } from '@/lib/api'
-import type { WpCategoryOption } from '@publisher-p12/types'
+import { queries } from '@/lib/api'
+import { useQuery } from '@/lib/query'
 
 interface WpCategorySelectProps {
   clientId: string
@@ -24,21 +24,12 @@ export function WpCategorySelect({
   hint,
 }: WpCategorySelectProps) {
   const selectId = useId()
-  const [categories, setCategories] = useState<WpCategoryOption[]>([])
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const categoriesQuery = useQuery(queries.wpCategories(clientId))
+  const categories = categoriesQuery.data ?? []
+  const loadError = categoriesQuery.data ? null : (categoriesQuery.error?.message ?? null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const loadCategories = useCallback(() => {
-    setLoadError(null)
-    return api.clients
-      .wpCategories(clientId)
-      .then(setCategories)
-      .catch((e: Error) => setLoadError(e.message))
-  }, [clientId])
-
-  useEffect(() => {
-    loadCategories()
-  }, [loadCategories])
+  const loadCategories = () => categoriesQuery.reload().catch(() => undefined)
 
   return (
     <>

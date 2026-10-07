@@ -1,7 +1,7 @@
 // frontend/components/google-panel.tsx
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ExternalLink, FilePlus2, LineChart, RefreshCw, Search, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,42 +9,54 @@ import { Panel } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { ListSkeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { useQuery } from '@/lib/query'
 import type { ClientGoogleView, GoogleConta, Oportunidade, SyncOportunidadesResult } from '@publisher-p12/types'
 
 const ROTULO_CONTA: Record<GoogleConta, string> = { contato: 'Conta Contato', ryan: 'Conta Ryan' }
 const num = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+
+/** Valor do select para o vínculo salvo: "conta|site" ou vazio. */
+function selecaoDoVinculo(view: ClientGoogleView): string {
+  const { gsc_site_url, gsc_conta } = view.vinculo
+  return gsc_site_url && gsc_conta ? `${gsc_conta}|${gsc_site_url}` : ''
+}
 
 interface GooglePanelProps {
   clientId: string
 }
 
 export function GooglePanel({ clientId }: GooglePanelProps) {
-  const [view, setView] = useState<ClientGoogleView | null>(null)
-  const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
+  // A lista de propriedades consulta as contas Google: lenta, por isso fica em cache
+  const viewQuery = useQuery(queries.google(clientId))
+  const oportunidadesQuery = useQuery(queries.oportunidadesNovas(clientId))
+  const view = viewQuery.data ?? null
+  const oportunidades = oportunidadesQuery.data ?? []
+  const carregando = viewQuery.isLoading || oportunidadesQuery.isLoading
+  const erroCarga =
+    (!viewQuery.data && viewQuery.error?.message) ||
+    (!oportunidadesQuery.data && oportunidadesQuery.error?.message) ||
+    null
   const [selecao, setSelecao] = useState('')
-  const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [acao, setAcao] = useState<string | null>(null)
   const [resultado, setResultado] = useState<SyncOportunidadesResult | null>(null)
-  const [erro, setErro] = useState<string | null>(null)
+  const [erroAcao, setErro] = useState<string | null>(null)
+  const erro = erroAcao ?? erroCarga
   const [aviso, setAviso] = useState<string | null>(null)
 
-  const recarregar = useCallback(async () => {
-    const [novaView, lista] = await Promise.all([api.google.get(clientId), api.oportunidades.list(clientId, 'nova')])
-    setView(novaView)
-    setOportunidades(lista)
-    const { gsc_site_url, gsc_conta } = novaView.vinculo
-    setSelecao(gsc_site_url && gsc_conta ? `${gsc_conta}|${gsc_site_url}` : '')
-  }, [clientId])
+  // O select acompanha o vínculo que chega da API, a menos que o usuário já tenha mexido nele
+  const [viewAplicada, setViewAplicada] = useState<ClientGoogleView | null>(null)
+  if (view && view !== viewAplicada) {
+    setViewAplicada(view)
+    if (!viewAplicada || selecao === selecaoDoVinculo(viewAplicada)) setSelecao(selecaoDoVinculo(view))
+  }
 
-  useEffect(() => {
-    recarregar()
-      .catch((e: Error) => setErro(e.message))
-      .finally(() => setCarregando(false))
-  }, [recarregar])
+  async function recarregar() {
+    await Promise.all([viewQuery.reload(), oportunidadesQuery.reload()])
+  }
 
   async function salvarVinculo() {
     setErro(null)
@@ -70,7 +82,7 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
     setSincronizando(true)
     try {
       setResultado(await api.oportunidades.sync(clientId))
-      setOportunidades(await api.oportunidades.list(clientId, 'nova'))
+      await oportunidadesQuery.reload()
     } catch (e) {
       setErro((e as Error).message)
     } finally {
@@ -83,7 +95,7 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
     setAcao(op.id)
     try {
       await api.oportunidades.virarPauta(clientId, op.id)
-      setOportunidades((lista) => lista.filter((o) => o.id !== op.id))
+      oportunidadesQuery.mutate((lista) => lista?.filter((o) => o.id !== op.id))
       setAviso(`"${op.query}" virou pauta — veja na aba Base e pautas.`)
     } catch (e) {
       setErro((e as Error).message)
@@ -97,7 +109,7 @@ export function GooglePanel({ clientId }: GooglePanelProps) {
     setAcao(op.id)
     try {
       await api.oportunidades.descartar(clientId, op.id)
-      setOportunidades((lista) => lista.filter((o) => o.id !== op.id))
+      oportunidadesQuery.mutate((lista) => lista?.filter((o) => o.id !== op.id))
     } catch (e) {
       setErro((e as Error).message)
     } finally {

@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation'
 import { ClientForm } from '@/components/client-form'
 import { PageHeader } from '@/components/ui/page-header'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { setQueryData } from '@/lib/query'
 import { cn } from '@/lib/utils'
+import type { Client } from '@publisher-p12/types'
 
 const PASSOS = ['Dados e acesso ao WordPress', 'Perfil do negócio'] as const
 
@@ -57,6 +59,9 @@ export default function NewClientPage() {
         submitLabel="Criar cliente"
         onSubmit={async (data) => {
           const client = await api.clients.create(data)
+          // A tela do cliente abre com ele já no cache, e a lista não fica sem o novo
+          setQueryData(queries.client(client.id).key, client)
+          setQueryData<Client[]>(queries.clients().key, (list) => list && [...list, client])
           // O pipeline só roda com o perfil preenchido: o próximo passo natural é ele
           router.push(`/clients/${client.id}?tab=perfil`)
         }}

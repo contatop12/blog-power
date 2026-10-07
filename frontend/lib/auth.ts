@@ -1,3 +1,5 @@
+import { clearQueryCache } from './query'
+
 const AUTH_KEY = 'publisher_auth'
 
 export function getStoredAuth(): string | null {
@@ -11,6 +13,8 @@ export function setStoredAuth(token: string): void {
 
 export function clearStoredAuth(): void {
   sessionStorage.removeItem(AUTH_KEY)
+  // Dados de clientes não ficam na memória da aba depois do logout
+  clearQueryCache()
 }
 
 export function isAuthenticated(): boolean {

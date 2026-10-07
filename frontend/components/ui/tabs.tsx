@@ -16,12 +16,15 @@ export function Tabs<T extends string>({
   items,
   value,
   onChange,
+  onIntent,
   className,
   label,
 }: {
   items: TabItem<T>[]
   value: T
   onChange: (value: T) => void
+  /** Cursor ou foco chegou na aba: hora de buscar o que ela vai mostrar. */
+  onIntent?: (value: T) => void
   className?: string
   /** Rótulo acessível do grupo de abas. */
   label: string
@@ -53,6 +56,8 @@ export function Tabs<T extends string>({
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.value)}
+            onPointerEnter={onIntent && (() => onIntent(item.value))}
+            onFocus={onIntent && (() => onIntent(item.value))}
             onKeyDown={(e) => {
               if (e.key === 'ArrowRight') focusAt(index + 1)
               if (e.key === 'ArrowLeft') focusAt(index - 1)

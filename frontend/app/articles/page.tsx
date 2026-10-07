@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Building2, FileText, Search, X } from 'lucide-react'
 import { ArticleStatusBadge, StatusDot } from '@/components/ui/badge'
 import { Button, buttonClass } from '@/components/ui/button'
@@ -11,11 +11,11 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
 import { ListSkeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { queries } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { prefetchQuery, useQuery } from '@/lib/query'
 import { ARTICLE_STATUS, PIPELINE_ORDER, STAGES, isStage, type Stage } from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { Article, Client } from '@publisher-p12/types'
 
 const STAGE_FILTERS: Stage[] = [...PIPELINE_ORDER, 'erro']
 
@@ -27,21 +27,16 @@ function ArticlesList() {
   const etapa: Stage | null = isStage(etapaParam) ? etapaParam : null
   const clientFilter = searchParams.get('client_id') ?? ''
 
-  const [articles, setArticles] = useState<Article[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const articlesQuery = useQuery(queries.articles())
+  const clientsQuery = useQuery(queries.clients())
+  const articles = useMemo(() => articlesQuery.data ?? [], [articlesQuery.data])
+  const clients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data])
+  const loading = articlesQuery.isLoading || clientsQuery.isLoading
+  const error =
+    (!articlesQuery.data && articlesQuery.error?.message) ||
+    (!clientsQuery.data && clientsQuery.error?.message) ||
+    null
   const [busca, setBusca] = useState('')
-
-  useEffect(() => {
-    Promise.all([api.articles.list(), api.clients.list()])
-      .then(([arts, cls]) => {
-        setArticles(arts)
-        setClients(cls)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar artigos'))
-      .finally(() => setLoading(false))
-  }, [])
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(searchParams.toString())
@@ -193,7 +188,7 @@ function ArticlesList() {
             </thead>
             <tbody>
               {sorted.map((a) => (
-                <tr key={a.id}>
+                <tr key={a.id} onPointerEnter={() => prefetchQuery(queries.article(a.id))}>
                   <td className="max-w-md">
                     <Link
                       href={`/articles/${a.id}/review`}

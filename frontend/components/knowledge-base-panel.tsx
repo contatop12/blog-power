@@ -25,6 +25,7 @@ import { ListSkeleton, Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { api } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { getQueryData, setQueryData } from '@/lib/query'
 import type {
   ArticleIdea,
   ClientPostSummary,
@@ -65,6 +66,15 @@ interface KnowledgeBasePanelProps {
   clientId: string
 }
 
+/** Última carga sem busca, guardada no cache para a aba reabrir na hora. */
+interface BaseSnapshot {
+  status: CorpusStatus
+  posts: ClientPostSummary[]
+  pautas: ArticleIdea[]
+}
+
+const chaveBase = (clientId: string) => `/clients/${clientId}/base`
+
 /**
  * Base de conhecimento do cliente: ingestão dos artigos publicados no WordPress
  * e pautas sugeridas pela IA a partir desse corpus.
@@ -72,9 +82,10 @@ interface KnowledgeBasePanelProps {
 export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
   const router = useRouter()
 
-  const [status, setStatus] = useState<CorpusStatus | null>(null)
-  const [posts, setPosts] = useState<ClientPostSummary[]>([])
-  const [pautas, setPautas] = useState<ArticleIdea[]>([])
+  const [snapshot] = useState(() => getQueryData<BaseSnapshot>(chaveBase(clientId)))
+  const [status, setStatus] = useState<CorpusStatus | null>(snapshot?.status ?? null)
+  const [posts, setPosts] = useState<ClientPostSummary[]>(snapshot?.posts ?? [])
+  const [pautas, setPautas] = useState<ArticleIdea[]>(snapshot?.pautas ?? [])
   const [busca, setBusca] = useState('')
   /** Termo que filtrou a lista atual (o campo pode ter texto ainda não buscado). */
   const [buscaAplicada, setBuscaAplicada] = useState('')
@@ -88,7 +99,7 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [frente, setFrente] = useState<Frente>('base')
-  const [carregando, setCarregando] = useState(true)
+  const [carregando, setCarregando] = useState(!snapshot)
   const [recarregando, setRecarregando] = useState(false)
   const [criandoArtigo, setCriandoArtigo] = useState<string | null>(null)
 
@@ -106,6 +117,9 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
     setPosts(novosPosts)
     setPautas(novasPautas)
     setBuscaAplicada(termo.trim())
+    if (!termo.trim()) {
+      setQueryData<BaseSnapshot>(chaveBase(clientId), { status: novoStatus, posts: novosPosts, pautas: novasPautas })
+    }
     if (novoStatus.job_em_andamento) setJobSync(novoStatus.job_em_andamento)
     return novoStatus
   }, [clientId])
@@ -210,6 +224,9 @@ export function KnowledgeBasePanel({ clientId }: KnowledgeBasePanelProps) {
 
   async function descartar(ideaId: string) {
     setPautas((atual) => atual.filter((p) => p.id !== ideaId))
+    setQueryData<BaseSnapshot>(chaveBase(clientId), (s) =>
+      s ? { ...s, pautas: s.pautas.filter((p) => p.id !== ideaId) } : s,
+    )
     try {
       await api.pautas.setStatus(clientId, ideaId, 'descartada')
     } catch (e) {

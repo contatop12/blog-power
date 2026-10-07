@@ -475,6 +475,12 @@ export interface Article {
   updated_at: string
 }
 
+/** Artigo na listagem (GET /articles): sem conteúdo, SEO/GEO, schema, dossiê e QA, que pesam ~90 KB cada. */
+export type ArticleSummary = Omit<
+  Article,
+  'conteudo_md' | 'conteudo_html' | 'seo' | 'geo' | 'schema_jsonld' | 'dossie' | 'qa'
+>
+
 export interface ArticleRevision {
   id: string
   article_id: string

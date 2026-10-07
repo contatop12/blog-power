@@ -2,9 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { Building2, FileText, LayoutDashboard, LogOut } from 'lucide-react'
 import { RegistrationMark } from '@/components/ui/print'
-import { clearStoredAuth } from '@/lib/auth'
+import { queries } from '@/lib/api'
+import { clearStoredAuth, isAuthenticated } from '@/lib/auth'
+import { prefetchForHref } from '@/lib/prefetch'
+import { prefetchQuery } from '@/lib/query'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
@@ -147,12 +151,44 @@ function MobileChrome() {
   )
 }
 
+/**
+ * Hover ou foco em qualquer link interno já busca os dados da tela de destino,
+ * e as listas do menu chegam logo depois da primeira tela.
+ */
+function IntentPrefetch() {
+  useEffect(() => {
+    if (!isAuthenticated()) return
+
+    function onIntent(e: Event) {
+      const link = e.target instanceof Element ? e.target.closest('a[href]') : null
+      const href = link?.getAttribute('href')
+      if (href?.startsWith('/')) prefetchForHref(href)
+    }
+    document.addEventListener('pointerover', onIntent, { passive: true })
+    document.addEventListener('focusin', onIntent)
+
+    const idle = window.setTimeout(() => {
+      prefetchQuery(queries.clients())
+      prefetchQuery(queries.articles())
+    }, 1500)
+
+    return () => {
+      document.removeEventListener('pointerover', onIntent)
+      document.removeEventListener('focusin', onIntent)
+      window.clearTimeout(idle)
+    }
+  }, [])
+
+  return null
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   if (pathname === '/login') return <>{children}</>
 
   return (
     <div className="min-h-dvh lg:pl-[92px]">
+      <IntentPrefetch />
       <Rail />
       <MobileChrome />
       <main className="mx-auto w-full max-w-7xl px-4 pb-28 pt-7 sm:px-6 lg:px-12 lg:pb-16 lg:pt-12">

@@ -1,6 +1,7 @@
 import type {
   Article,
   ArticleStatus,
+  ArticleSummary,
   Briefing,
   Client,
   ConnectionStatus,
@@ -286,11 +287,39 @@ export async function setClientConnectionStatus(
     .run()
 }
 
+/** Colunas da listagem: tudo menos conteúdo, SEO/GEO, schema, dossiê e QA (ver ArticleSummary). */
+const ARTICLE_SUMMARY_COLUMNS = `id, client_id, status, briefing, imagem_url, imagem_alt, wp_post_id, wp_url,
+  agendado_para, publicado_em, wp_post_type, erro_msg, created_at, updated_at`
+
+type ArticleSummaryRow = Omit<
+  ArticleRow,
+  'conteudo_md' | 'conteudo_html' | 'seo' | 'geo' | 'schema_jsonld' | 'dossie' | 'qa'
+>
+
+function rowToArticleSummary(row: ArticleSummaryRow): ArticleSummary {
+  return {
+    id: row.id,
+    client_id: row.client_id,
+    status: row.status,
+    briefing: parseJson<Briefing>(row.briefing),
+    imagem_url: row.imagem_url,
+    imagem_alt: row.imagem_alt,
+    wp_post_id: row.wp_post_id,
+    wp_url: row.wp_url,
+    agendado_para: row.agendado_para,
+    publicado_em: row.publicado_em,
+    wp_post_type: row.wp_post_type === 'page' ? 'page' : 'post',
+    erro_msg: row.erro_msg,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
 export async function listArticles(
   db: D1Database,
   filters?: { client_id?: string; status?: ArticleStatus },
-): Promise<Article[]> {
-  let query = 'SELECT * FROM articles WHERE 1=1'
+): Promise<ArticleSummary[]> {
+  let query = `SELECT ${ARTICLE_SUMMARY_COLUMNS} FROM articles WHERE 1=1`
   const binds: unknown[] = []
   if (filters?.client_id) {
     query += ' AND client_id = ?'
@@ -302,8 +331,8 @@ export async function listArticles(
   }
   query += ' ORDER BY created_at DESC'
   const stmt = db.prepare(query)
-  const { results } = await (binds.length > 0 ? stmt.bind(...binds) : stmt).all<ArticleRow>()
-  return (results ?? []).map(rowToArticle)
+  const { results } = await (binds.length > 0 ? stmt.bind(...binds) : stmt).all<ArticleSummaryRow>()
+  return (results ?? []).map(rowToArticleSummary)
 }
 
 export async function getArticle(db: D1Database, id: string): Promise<Article | null> {
@@ -555,15 +584,66 @@ function temaFromBriefing(briefing: string | null): string {
 
 const EM_ANDAMENTO: ArticleStatus[] = ['briefing', 'gerando', 'rascunho', 'em_revisao', 'aprovado']
 
+type DashboardClientRow = Pick<ClientRow, 'id' | 'nome' | 'dominio' | 'status_conexao' | 'updated_at'>
+
+type DashboardArticleDbRow = Pick<
+  ArticleRow,
+  | 'id'
+  | 'client_id'
+  | 'briefing'
+  | 'status'
+  | 'wp_url'
+  | 'publicado_em'
+  | 'agendado_para'
+  | 'erro_msg'
+  | 'updated_at'
+>
+
+interface DashboardJobErrorRow {
+  id: string
+  article_id: string | null
+  tipo: JobTipo
+  erro: string | null
+  finished_at: string | null
+  created_at: string
+  client_id: string | null
+  briefing: string | null
+  resolvido_em: string | null
+}
+
 export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
-  const clients = await listClients(db)
+  // Uma ida ao D1 para as três consultas, e só as colunas que o painel mostra
+  // (o SELECT * trazia conteúdo, dossiê e QA de todos os artigos).
+  const [clientsRes, articlesRes, jobErrorsRes] = await db.batch([
+    db.prepare(
+      'SELECT id, nome, dominio, status_conexao, updated_at FROM clients ORDER BY nome',
+    ),
+    db.prepare(
+      `SELECT id, client_id, briefing, status, wp_url, publicado_em, agendado_para, erro_msg, updated_at
+       FROM articles ORDER BY updated_at DESC`,
+    ),
+    db.prepare(
+      // Jobs de escopo cliente (corpus, pautas) não têm artigo: o cliente vem de jobs.client_id.
+      // resolvido_em = primeira execução posterior do mesmo tipo, no mesmo escopo, que deu ok.
+      `SELECT j.id, j.article_id, j.tipo, j.erro, j.finished_at, j.created_at,
+              COALESCE(j.client_id, a.client_id) AS client_id, a.briefing,
+              (SELECT MIN(k.finished_at) FROM jobs k
+                WHERE k.tipo = j.tipo AND k.status = 'ok' AND k.created_at > j.created_at
+                  AND ((j.article_id IS NOT NULL AND k.article_id = j.article_id)
+                    OR (j.article_id IS NULL AND k.client_id = j.client_id))) AS resolvido_em
+       FROM jobs j
+       LEFT JOIN articles a ON a.id = j.article_id
+       WHERE j.status = 'erro'
+       ORDER BY COALESCE(j.finished_at, j.created_at) DESC
+       LIMIT 40`,
+    ),
+  ])
+  const clients = (clientsRes?.results ?? []) as DashboardClientRow[]
+  const articleRows = (articlesRes?.results ?? []) as DashboardArticleDbRow[]
+  const jobErrors = (jobErrorsRes?.results ?? []) as DashboardJobErrorRow[]
   const clientMap = new Map(clients.map((c) => [c.id, c]))
 
-  const { results: articleRows } = await db
-    .prepare('SELECT * FROM articles ORDER BY updated_at DESC')
-    .all<ArticleRow>()
-
-  const articles = (articleRows ?? []).map((row) => {
+  const articles = articleRows.map((row) => {
     const client = clientMap.get(row.client_id)
     const item: DashboardArticleRow = {
       id: row.id,
@@ -603,35 +683,7 @@ export async function getDashboard(db: D1Database): Promise<DashboardPayload> {
     }
   }
 
-  const { results: jobErrors } = await db
-    .prepare(
-      // Jobs de escopo cliente (corpus, pautas) não têm artigo: o cliente vem de jobs.client_id.
-      // resolvido_em = primeira execução posterior do mesmo tipo, no mesmo escopo, que deu ok.
-      `SELECT j.id, j.article_id, j.tipo, j.erro, j.finished_at, j.created_at,
-              COALESCE(j.client_id, a.client_id) AS client_id, a.briefing,
-              (SELECT MIN(k.finished_at) FROM jobs k
-                WHERE k.tipo = j.tipo AND k.status = 'ok' AND k.created_at > j.created_at
-                  AND ((j.article_id IS NOT NULL AND k.article_id = j.article_id)
-                    OR (j.article_id IS NULL AND k.client_id = j.client_id))) AS resolvido_em
-       FROM jobs j
-       LEFT JOIN articles a ON a.id = j.article_id
-       WHERE j.status = 'erro'
-       ORDER BY COALESCE(j.finished_at, j.created_at) DESC
-       LIMIT 40`,
-    )
-    .all<{
-      id: string
-      article_id: string | null
-      tipo: JobTipo
-      erro: string | null
-      finished_at: string | null
-      created_at: string
-      client_id: string | null
-      briefing: string | null
-      resolvido_em: string | null
-    }>()
-
-  for (const j of jobErrors ?? []) {
+  for (const j of jobErrors) {
     const client = j.client_id ? clientMap.get(j.client_id) : undefined
     erros_servicos.push({
       id: j.id,

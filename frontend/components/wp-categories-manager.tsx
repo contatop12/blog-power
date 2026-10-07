@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CornerDownRight, Folder, Pencil, Plus, Tags, Trash2 } from 'lucide-react'
 import { WpCategoryFormDialog } from '@/components/wp-category-form-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { useQuery } from '@/lib/query'
 import { cn } from '@/lib/utils'
 import type { WpCategoryOption } from '@publisher-p12/types'
 
@@ -71,29 +72,29 @@ function CategoriesSkeleton() {
 }
 
 export function WpCategoriesManager({ clientId }: WpCategoriesManagerProps) {
-  const [categories, setCategories] = useState<WpCategoryOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Mesma chave do seletor de categoria da aba Dados: quem abriu uma, já tem a outra
+  const categoriesQuery = useQuery(queries.wpCategories(clientId))
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data])
+  // Recarga pedida (depois de criar/editar) esmaece a lista; a revalidação ao abrir a aba não
+  const [reloading, setReloading] = useState(false)
+  const [actionError, setError] = useState<string | null>(null)
+  const error = actionError ?? categoriesQuery.error?.message ?? null
+  const loading = reloading
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<WpCategoryOption | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  const loadCategories = useCallback(async () => {
-    setLoading(true)
+  async function loadCategories() {
+    setReloading(true)
     setError(null)
     try {
-      const data = await api.clients.wpCategories(clientId)
-      setCategories(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar categorias')
+      await categoriesQuery.reload()
+    } catch {
+      // O erro da leitura já vem de categoriesQuery.error
     } finally {
-      setLoading(false)
+      setReloading(false)
     }
-  }, [clientId])
-
-  useEffect(() => {
-    loadCategories()
-  }, [loadCategories])
+  }
 
   const rows = useMemo(() => asTree(categories), [categories])
 
@@ -109,7 +110,7 @@ export function WpCategoriesManager({ clientId }: WpCategoriesManagerProps) {
     setError(null)
     try {
       await api.clients.deleteWpCategory(clientId, category.id)
-      setCategories((prev) => prev.filter((c) => c.id !== category.id))
+      categoriesQuery.mutate((prev) => prev?.filter((c) => c.id !== category.id))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao excluir categoria')
     } finally {
@@ -122,8 +123,8 @@ export function WpCategoriesManager({ clientId }: WpCategoriesManagerProps) {
     setDialogOpen(true)
   }
 
-  const firstLoad = loading && categories.length === 0
-  const loadFailed = Boolean(error) && !loading && categories.length === 0
+  const firstLoad = categoriesQuery.isLoading
+  const loadFailed = !categoriesQuery.data && Boolean(categoriesQuery.error) && !categoriesQuery.isFetching
 
   return (
     <>
@@ -140,7 +141,7 @@ export function WpCategoriesManager({ clientId }: WpCategoriesManagerProps) {
         description="As categorias do WordPress do cliente. Cada artigo publicado entra em uma delas, e o que você muda aqui vale direto no site."
         action={
           <div className="flex items-center gap-3">
-            {loading && !firstLoad && (
+            {(loading || categoriesQuery.isFetching) && !firstLoad && (
               <span className="flex items-center gap-1.5 text-xs text-muted">
                 <Spinner size="sm" />
                 Atualizando

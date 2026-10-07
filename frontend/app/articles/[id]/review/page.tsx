@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   CheckCircle2,
   CircleDashed,
@@ -22,11 +22,12 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
 import { CropMarks } from '@/components/ui/print'
-import { Skeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { ReviewPageSkeleton } from '@/components/ui/skeleton'
+import { api, queries } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { getQueryData, useQuery } from '@/lib/query'
 import { cn } from '@/lib/utils'
-import type { Article, LinkInterno } from '@publisher-p12/types'
+import type { Client, LinkInterno } from '@publisher-p12/types'
 
 const FRESHNESS: Record<string, string> = {
   evergreen: 'Evergreen',
@@ -104,54 +105,36 @@ function LinkRow({ link }: { link: LinkInterno }) {
   )
 }
 
-function ReviewSkeleton() {
-  return (
-    <div className="space-y-6" aria-busy="true" aria-label="Carregando artigo">
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-8 w-2/3" />
-        <Skeleton className="h-6 w-80" />
-      </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <Skeleton className="h-[560px] rounded-xl" />
-        <div className="space-y-6">
-          <Skeleton className="h-64 rounded-xl" />
-          <Skeleton className="h-40 rounded-xl" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function ReviewPage() {
   const params = useParams()
   const id = params.id as string
-  const [article, setArticle] = useState<Article | null>(null)
-  const [clientName, setClientName] = useState<string | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [md, setMd] = useState('')
-  const [savedMd, setSavedMd] = useState('')
+  const articleQuery = useQuery(queries.article(id))
+  const article = articleQuery.data ?? null
+  const loadError = article ? null : (articleQuery.error?.message ?? null)
+  // Só o nome, para o "voltar": a lista de clientes em cache já resolve na maioria das vezes
+  const clientQuery = useQuery(article ? queries.client(article.client_id) : null, {
+    placeholder: () =>
+      getQueryData<Client[]>(queries.clients().key)?.find((c) => c.id === article?.client_id),
+  })
+  const clientName = clientQuery.data?.nome ?? null
+
+  const serverMd = article ? (article.conteudo_md ?? '') : null
+  const [syncedMd, setSyncedMd] = useState(serverMd)
+  const [md, setMd] = useState(serverMd ?? '')
+  const [savedMd, setSavedMd] = useState(serverMd ?? '')
+  // Conteúdo novo da API (primeira carga ou revalidação) só entra no editor sem edição pendente
+  if (serverMd !== null && serverMd !== syncedMd) {
+    setSyncedMd(serverMd)
+    if (md === savedMd) {
+      setMd(serverMd)
+      setSavedMd(serverMd)
+    }
+  }
   const [saving, setSaving] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [imageState, setImageState] = useState<'idle' | 'loading' | 'requested' | 'error'>('idle')
   const [imageError, setImageError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!id) return
-    api.articles
-      .get(id)
-      .then((a) => {
-        setArticle(a)
-        setMd(a.conteudo_md ?? '')
-        setSavedMd(a.conteudo_md ?? '')
-        api.clients
-          .get(a.client_id)
-          .then((c) => setClientName(c.nome))
-          .catch(() => setClientName(null))
-      })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : 'Erro ao carregar o artigo'))
-  }, [id])
 
   if (loadError) {
     return (
@@ -164,7 +147,7 @@ export default function ReviewPage() {
     )
   }
 
-  if (!article) return <ReviewSkeleton />
+  if (!article) return <ReviewPageSkeleton />
 
   const seo = article.seo
   const links = seo?.links_internos ?? []
@@ -179,7 +162,8 @@ export default function ReviewPage() {
     setSaving(true)
     setSaveError(null)
     try {
-      await api.articles.update(id, { conteudo_md: md })
+      const updated = await api.articles.update(id, { conteudo_md: md })
+      articleQuery.mutate(updated)
       setSavedMd(md)
       setSaveState('saved')
     } catch (e) {

@@ -62,9 +62,10 @@ export async function authenticateRequest(c: Context<{ Bindings: ApiBindings }>)
   const valid =
     secureCompare(user, c.env.DASHBOARD_USER) && secureCompare(pass, c.env.DASHBOARD_PASS)
 
-  await recordAuthAttempt(c.env.DB, ipHash, valid)
-
+  // Só falhas contam para o bloqueio: gravar cada request autenticado custava
+  // duas idas ao D1 (INSERT + DELETE) em toda tela, sem mudar a regra.
   if (!valid) {
+    await recordAuthAttempt(c.env.DB, ipHash, false)
     const after = await checkRateLimit(c.env.DB, ipHash)
     return {
       ok: false,

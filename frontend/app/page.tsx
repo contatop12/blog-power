@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
 import {
   AlertOctagon,
   Building2,
@@ -23,8 +22,9 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { queries } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { useQuery } from '@/lib/query'
 import { STAGES, TONE_CLASSES, type Stage, type Tone } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import type { DashboardArticleRow, DashboardPayload, DashboardServiceError } from '@publisher-p12/types'
@@ -334,25 +334,11 @@ function DashboardSkeleton() {
 }
 
 export default function HomePage() {
-  const [data, setData] = useState<DashboardPayload | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data, error, isLoading, reload } = useQuery(queries.dashboard())
 
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    api.dashboard
-      .get()
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erro ao carregar o painel'))
-      .finally(() => setLoading(false))
-  }, [])
+  if (isLoading) return <DashboardSkeleton />
 
-  useEffect(load, [load])
-
-  if (loading && !data) return <DashboardSkeleton />
-
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="space-y-6">
         <PageHeader title="Painel" />
@@ -360,12 +346,12 @@ export default function HomePage() {
           tone="danger"
           title="Não foi possível carregar o painel"
           action={
-            <Button variant="outline" size="sm" onClick={load}>
+            <Button variant="outline" size="sm" onClick={() => reload().catch(() => undefined)}>
               Tentar de novo
             </Button>
           }
         >
-          {error ?? 'A API não respondeu.'}
+          {error?.message ?? 'A API não respondeu.'}
         </Notice>
       </div>
     )

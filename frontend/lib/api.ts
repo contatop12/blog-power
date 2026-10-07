@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleIdea,
   ArticleIdeaStatus,
+  ArticleSummary,
   Client,
   ClientGoogle,
   ClientGoogleView,
@@ -25,7 +26,8 @@ import type {
   WpCategoryOption,
   WpTagOption,
 } from '@publisher-p12/types'
-import { getAuthHeader } from './auth'
+import { clearStoredAuth, getAuthHeader } from './auth'
+import type { Query } from './query'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8787'
 
@@ -45,7 +47,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, skipAuth = f
 
   if (res.status === 401 && !skipAuth) {
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('publisher_auth')
+      clearStoredAuth()
       window.location.href = '/login'
     }
     throw new Error('Sessão expirada')
@@ -158,7 +160,7 @@ export const api = {
       if (params?.client_id) q.set('client_id', params.client_id)
       if (params?.status) q.set('status', params.status)
       const qs = q.toString()
-      return apiFetch<Article[]>(`/articles${qs ? `?${qs}` : ''}`)
+      return apiFetch<ArticleSummary[]>(`/articles${qs ? `?${qs}` : ''}`)
     },
     get: (id: string) => apiFetch<Article>(`/articles/${id}`),
     create: (body: unknown) => apiFetch<Article>('/articles', { method: 'POST', body: JSON.stringify(body) }),
@@ -228,4 +230,44 @@ export const api = {
   jobs: {
     get: (id: string) => apiFetch<Job>(`/jobs/${id}`),
   },
+}
+
+/**
+ * Leituras que as telas guardam no cache (lib/query): a chave é o caminho na API.
+ * Mutações atualizam o cache com setQueryData/mutate ou forçam recarga com reload.
+ */
+export const queries = {
+  dashboard: (): Query<DashboardPayload> => ({ key: '/dashboard', fn: api.dashboard.get }),
+  clients: (): Query<Client[]> => ({ key: '/clients', fn: api.clients.list }),
+  client: (id: string): Query<Client> => ({ key: `/clients/${id}`, fn: () => api.clients.get(id) }),
+  perfil: (id: string): Query<PerfilClienteView> => ({
+    key: `/clients/${id}/perfil`,
+    fn: () => api.clients.perfil(id),
+  }),
+  materials: (id: string): Query<ClientMaterial[]> => ({
+    key: `/clients/${id}/materials`,
+    fn: () => api.materials.list(id),
+  }),
+  wpCategories: (id: string): Query<WpCategoryOption[]> => ({
+    key: `/clients/${id}/wp/categories`,
+    fn: () => api.clients.wpCategories(id),
+  }),
+  wpTags: (id: string): Query<WpTagOption[]> => ({
+    key: `/clients/${id}/wp/tags`,
+    fn: () => api.clients.wpTags(id),
+  }),
+  wpAuthors: (id: string): Query<WpAuthorOption[]> => ({
+    key: `/clients/${id}/wp/authors`,
+    fn: () => api.clients.wpAuthors(id),
+  }),
+  google: (id: string): Query<ClientGoogleView> => ({
+    key: `/clients/${id}/google`,
+    fn: () => api.google.get(id),
+  }),
+  oportunidadesNovas: (id: string): Query<Oportunidade[]> => ({
+    key: `/clients/${id}/oportunidades?status=nova`,
+    fn: () => api.oportunidades.list(id, 'nova'),
+  }),
+  articles: (): Query<ArticleSummary[]> => ({ key: '/articles', fn: () => api.articles.list() }),
+  article: (id: string): Query<Article> => ({ key: `/articles/${id}`, fn: () => api.articles.get(id) }),
 }

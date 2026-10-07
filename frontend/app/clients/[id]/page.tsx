@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Check,
   CheckCircle2,
@@ -40,9 +40,10 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ClientPageSkeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, type TabItem } from '@/components/ui/tabs'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
 import { SEO_PLUGINS } from '@/lib/client-form'
 import { PERFIL_CAMPOS, calcularCompletudeLocal, perfilVazio } from '@/lib/perfil-cliente'
+import { getQueryData, prefetchQuery, setQueryData, useQuery } from '@/lib/query'
 import { cn } from '@/lib/utils'
 import type { Client, ConnectionCheckResult, ConnectionStatus, SeoPlugin } from '@publisher-p12/types'
 
@@ -261,8 +262,12 @@ export default function ClientDetailPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const id = params.id as string
-  const [client, setClient] = useState<Client | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Vindo da lista, o cliente já está no cache dela: abre na hora e revalida
+  const clientQuery = useQuery(queries.client(id), {
+    placeholder: () => getQueryData<Client[]>(queries.clients().key)?.find((c) => c.id === id),
+  })
+  const client = clientQuery.data ?? null
+  const loadError = clientQuery.error?.message ?? null
   const [connection, setConnection] = useState<ConnectionCheckResult | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [tab, setTab] = useState<Aba>(() => abaInicial(searchParams.get('tab')))
@@ -272,15 +277,20 @@ export default function ClientDetailPage() {
   const [syncing, setSyncing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  useEffect(() => {
-    api.clients
-      .get(id)
-      .then(setClient)
-      .catch((e) => {
-        setClient(null)
-        setLoadError(e instanceof Error ? e.message : 'Erro ao carregar o cliente')
-      })
-  }, [id])
+  /** Aplica a mudança no cliente aberto e na lista de clientes em cache. */
+  function patchClient(update: (current: Client) => Client) {
+    clientQuery.mutate((current) => (current ? update(current) : current))
+    setQueryData<Client[]>(queries.clients().key, (list) =>
+      list?.map((c) => (c.id === id ? update(c) : c)),
+    )
+  }
+
+  /** Dados das abas que só leem o D1 começam a vir quando o cursor chega nelas. */
+  function prefetchTab(aba: Aba) {
+    if (aba === 'perfil') prefetchQuery(queries.perfil(id))
+    if (aba === 'materiais') prefetchQuery(queries.materials(id))
+    if (aba === 'categorias') prefetchQuery(queries.wpCategories(id))
+  }
 
   async function testarConexao() {
     setTesting(true)
@@ -288,11 +298,8 @@ export default function ClientDetailPage() {
     try {
       const result = await api.clients.testConnection(id)
       setConnection(result)
-      if (result.status_conexao) {
-        setClient((current) =>
-          current ? { ...current, status_conexao: result.status_conexao } : current,
-        )
-      }
+      const status = result.status_conexao
+      if (status) patchClient((current) => ({ ...current, status_conexao: status }))
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Falha ao testar conexão')
     } finally {
@@ -466,7 +473,13 @@ export default function ClientDetailPage() {
       {showSetup && <SetupChecklist steps={setupSteps} />}
 
       <div id={TABS_ANCHOR} className="scroll-mt-20 space-y-6 lg:scroll-mt-6">
-        <Tabs items={tabItems} value={tab} onChange={changeTab} label="Seções do cliente" />
+        <Tabs
+          items={tabItems}
+          value={tab}
+          onChange={changeTab}
+          onIntent={prefetchTab}
+          label="Seções do cliente"
+        />
 
         <div
           role="tabpanel"
@@ -574,7 +587,7 @@ export default function ClientDetailPage() {
                   submitLabel="Salvar alterações"
                   onSubmit={async (data) => {
                     const updated = await api.clients.update(id, data)
-                    setClient(updated)
+                    patchClient(() => updated)
                   }}
                 />
               </div>
@@ -584,9 +597,7 @@ export default function ClientDetailPage() {
           {tab === 'perfil' && (
             <ClientProfileForm
               clientId={id}
-              onSaved={(perfil) =>
-                setClient((atual) => (atual ? { ...atual, perfil_marca: perfil } : atual))
-              }
+              onSaved={(perfil) => patchClient((atual) => ({ ...atual, perfil_marca: perfil }))}
             />
           )}
 

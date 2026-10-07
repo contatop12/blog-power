@@ -10,7 +10,8 @@ import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WpCategorySelect } from '@/components/wp-category-select'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { getQueryData, useQuery } from '@/lib/query'
 import { defaultScheduleLocal, formatSchedulePreview, localDatetimeToUtcIso } from '@/lib/schedule'
 import type { Briefing, Client, WpPostType } from '@publisher-p12/types'
 
@@ -66,7 +67,11 @@ function NewArticleForm() {
   const searchParams = useSearchParams()
   const clientId = searchParams.get('client_id')?.trim() ?? ''
 
-  const [client, setClient] = useState<Client | null>(null)
+  const clientQuery = useQuery(clientId ? queries.client(clientId) : null, {
+    placeholder: () => getQueryData<Client[]>(queries.clients().key)?.find((c) => c.id === clientId),
+  })
+  const client = clientQuery.data ?? null
+  const clientMissing = Boolean(clientQuery.error) && !client
   const [briefing, setBriefing] = useState<Briefing>(emptyBriefing)
   const [kwsSecundariasText, setKwsSecundariasText] = useState('')
   const [categoriaId, setCategoriaId] = useState<number | null>(null)
@@ -77,20 +82,17 @@ function NewArticleForm() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Padrões do cliente entram no formulário uma vez, quando ele chega (do cache ou da API)
+  const [seededFor, setSeededFor] = useState<string | null>(null)
+  if (client && seededFor !== client.id) {
+    setSeededFor(client.id)
+    setScheduleLocal(defaultScheduleLocal(client.timezone))
+    if (client.categoria_padrao_id) setCategoriaId(client.categoria_padrao_id)
+  }
+
   useEffect(() => {
-    if (!clientId) {
-      router.replace('/clients')
-      return
-    }
-    api.clients
-      .get(clientId)
-      .then((c) => {
-        setClient(c)
-        setScheduleLocal(defaultScheduleLocal(c.timezone))
-        if (c.categoria_padrao_id) setCategoriaId(c.categoria_padrao_id)
-      })
-      .catch(() => router.replace('/clients'))
-  }, [clientId, router])
+    if (!clientId || clientMissing) router.replace('/clients')
+  }, [clientId, clientMissing, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

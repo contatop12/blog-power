@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Building2, Plus, Search, X } from 'lucide-react'
 import { Badge, ConnectionBadge } from '@/components/ui/badge'
 import { Button, buttonClass } from '@/components/ui/button'
@@ -9,9 +9,10 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { queries } from '@/lib/api'
 import { SEO_PLUGINS } from '@/lib/client-form'
 import { calcularCompletudeLocal } from '@/lib/perfil-cliente'
+import { prefetchQuery, useQuery } from '@/lib/query'
 import type { Client, SeoPlugin } from '@publisher-p12/types'
 
 /** A partir daqui a lista ganha busca. */
@@ -37,8 +38,15 @@ function ClientCard({ client }: { client: Client }) {
   const perfilIncompleto =
     !client.perfil_marca || calcularCompletudeLocal(client.perfil_marca).faltando_obrigatorios.length > 0
 
+  // Busca o cliente enquanto o cursor/foco chega no card: o clique já abre com dados
+  const prefetch = () => prefetchQuery(queries.client(client.id))
+
   return (
-    <article className="flex min-w-0 flex-col rounded-xl border border-line bg-surface p-5 transition-colors duration-150 hover:border-line-strong">
+    <article
+      className="flex min-w-0 flex-col rounded-xl border border-line bg-surface p-5 transition-colors duration-150 hover:border-line-strong"
+      onPointerEnter={prefetch}
+      onFocusCapture={prefetch}
+    >
       <div className="flex min-w-0 items-start gap-3">
         <span
           className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-sm font-bold tracking-tight text-brand-strong"
@@ -115,22 +123,9 @@ function ClientsSkeleton() {
 }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, error, isLoading, reload } = useQuery(queries.clients())
+  const clients = useMemo(() => data ?? [], [data])
   const [busca, setBusca] = useState('')
-
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    api.clients
-      .list()
-      .then(setClients)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(load, [load])
 
   const visible = useMemo(() => {
     const term = busca.trim().toLowerCase()
@@ -179,23 +174,23 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {error && (
+      {error && !data && (
         <Notice
           tone="danger"
           title="Não foi possível carregar os clientes"
           action={
-            <Button variant="outline" size="sm" onClick={load}>
+            <Button variant="outline" size="sm" onClick={() => reload().catch(() => undefined)}>
               Tentar de novo
             </Button>
           }
         >
-          {error}
+          {error.message}
         </Notice>
       )}
 
-      {loading ? (
+      {isLoading ? (
         <ClientsSkeleton />
-      ) : error ? null : clients.length === 0 ? (
+      ) : !data ? null : clients.length === 0 ? (
         <EmptyState
           icon={<Building2 />}
           title="Nenhum cliente cadastrado"

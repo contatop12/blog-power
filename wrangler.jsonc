@@ -4,6 +4,11 @@
   "main": "workers/api/src/index.ts",
   "compatibility_date": "2025-03-01",
   "compatibility_flags": ["nodejs_compat_v2"],
+  // Roda o Worker ao lado do D1 (primário em WNAM/San José), não no PoP do usuário.
+  // Cada request faz 2+ queries em série; de GRU cada uma custava ~240 ms de ida e volta.
+  "placement": {
+    "region": "aws:us-west-1"
+  },
   "vars": {
     "ENVIRONMENT": "production",
     "GOOGLE_ADS_LOGIN_CUSTOMER_ID": "3780611396",

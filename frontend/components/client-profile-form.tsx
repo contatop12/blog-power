@@ -17,7 +17,8 @@ import { Card } from '@/components/ui/card'
 import { FieldLabel } from '@/components/field-hint'
 import { Notice } from '@/components/ui/notice'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { useQuery } from '@/lib/query'
 import {
   PERFIL_BLOCOS,
   PERFIL_CAMPOS,
@@ -38,6 +39,7 @@ import type {
   PerfilCampoMeta,
   PerfilCampoTipo,
   PerfilCliente,
+  PerfilClienteView,
   ProfissionalResponsavel,
   ServicoMarca,
 } from '@publisher-p12/types'
@@ -102,41 +104,33 @@ function ProfileSkeleton() {
 }
 
 export function ClientProfileForm({ clientId, onSaved }: ClientProfileFormProps) {
+  const perfilQuery = useQuery(queries.perfil(clientId))
+  const carregando = perfilQuery.isLoading
+  const erroCarga = perfilQuery.data ? null : (perfilQuery.error?.message ?? null)
   const [perfil, setPerfil] = useState<PerfilCliente>(perfilVazio)
-  const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const [erroCarga, setErroCarga] = useState<string | null>(null)
   const [salvoEm, setSalvoEm] = useState<string | null>(null)
   const [alterado, setAlterado] = useState(false)
   const [abertos, setAbertos] = useState<PerfilBloco[]>(['identidade'])
   // Seções abertas na carga aparecem sem animação; só o clique do usuário anima
   const [interagiu, setInteragiu] = useState(false)
 
-  useEffect(() => {
-    let ativo = true
-    api.clients
-      .perfil(clientId)
-      .then((view) => {
-        if (!ativo) return
-        setPerfil(view.perfil)
-        // Já abre as seções onde falta campo obrigatório
-        const faltando = calcularCompletudeLocal(view.perfil).faltando_obrigatorios
-        const pendentes = PERFIL_CAMPOS.filter((c) => faltando.includes(c.chave)).map((c) => c.bloco)
-        if (pendentes.length > 0) {
-          setAbertos((atual) => Array.from(new Set([...atual, ...pendentes])))
-        }
-      })
-      .catch((e) => {
-        if (ativo) setErroCarga(e instanceof Error ? e.message : 'Falha ao carregar o perfil')
-      })
-      .finally(() => {
-        if (ativo) setCarregando(false)
-      })
-    return () => {
-      ativo = false
+  // Perfil que chega (do cache ou da revalidação) entra no formulário se não houver edição pendente
+  const view = perfilQuery.data
+  const [aplicado, setAplicado] = useState<PerfilClienteView | undefined>(undefined)
+  if (view && view !== aplicado) {
+    setAplicado(view)
+    if (!alterado) setPerfil(view.perfil)
+    if (!aplicado) {
+      // Já abre as seções onde falta campo obrigatório
+      const faltando = calcularCompletudeLocal(view.perfil).faltando_obrigatorios
+      const pendentes = PERFIL_CAMPOS.filter((c) => faltando.includes(c.chave)).map((c) => c.bloco)
+      if (pendentes.length > 0) {
+        setAbertos((atual) => Array.from(new Set([...atual, ...pendentes])))
+      }
     }
-  }, [clientId])
+  }
 
   // Recalcula a cada tecla: a barra precisa reagir antes de salvar
   const completude = useMemo(() => calcularCompletudeLocal(perfil), [perfil])
@@ -184,6 +178,7 @@ export function ClientProfileForm({ clientId, onSaved }: ClientProfileFormProps)
     setErro(null)
     try {
       const view = await api.clients.savePerfil(clientId, limparListasEstruturadas(perfil))
+      perfilQuery.mutate(view)
       setPerfil(view.perfil)
       setSalvoEm(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
       setAlterado(false)

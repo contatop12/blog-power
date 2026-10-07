@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Download,
   FileText,
@@ -18,7 +18,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Notice } from '@/components/ui/notice'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { useQuery } from '@/lib/query'
 import { formatBytes } from '@/lib/client-form'
 import { formatDateTime, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -66,27 +67,20 @@ interface MaterialsUploadProps {
 }
 
 export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
-  const [materials, setMaterials] = useState<ClientMaterial[]>([])
-  const [loading, setLoading] = useState(true)
+  const materialsQuery = useQuery(queries.materials(clientId))
+  const materials = materialsQuery.data ?? []
+  const loading = materialsQuery.isFetching
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setError] = useState<string | null>(null)
+  const error = actionError ?? (materialsQuery.data ? null : (materialsQuery.error?.message ?? null))
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.materials
-      .list(clientId)
-      .then(setMaterials)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [clientId])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  const load = () => {
+    materialsQuery.reload().catch(() => undefined)
+  }
 
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files)
@@ -144,7 +138,7 @@ export function MaterialsUpload({ clientId }: MaterialsUploadProps) {
     void uploadFiles(e.dataTransfer.files)
   }
 
-  const firstLoad = loading && materials.length === 0
+  const firstLoad = materialsQuery.isLoading
 
   return (
     <div className="space-y-6">

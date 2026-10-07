@@ -55,3 +55,22 @@ export function ListSkeleton({ rows = 4, label }: { rows?: number; label: string
     </div>
   )
 }
+
+export function ReviewPageSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Carregando artigo">
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-6 w-80" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Skeleton className="h-[560px] rounded-xl" />
+        <div className="space-y-6">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-40 rounded-xl" />
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -7,19 +7,15 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { ChoiceGroup } from '@/components/ui/choice-group'
 import { Notice } from '@/components/ui/notice'
 import { WpCategorySelect } from '@/components/wp-category-select'
-import { api } from '@/lib/api'
+import { api, queries } from '@/lib/api'
+import { getQueryData, useQuery } from '@/lib/query'
 import {
   defaultScheduleLocal,
   formatSchedulePreview,
   localDatetimeToUtcIso,
   utcIsoToLocalDatetime,
 } from '@/lib/schedule'
-import type {
-  Client,
-  WpAuthorOption,
-  WpPostType,
-  WpTagOption,
-} from '@publisher-p12/types'
+import type { Client, WpPostType } from '@publisher-p12/types'
 
 interface PublishPanelProps {
   articleId: string
@@ -38,10 +34,19 @@ export function PublishPanel({
   initialAgendadoPara = null,
   initialCategoriaIds,
 }: PublishPanelProps) {
-  const [client, setClient] = useState<Client | null>(null)
-  const [tags, setTags] = useState<WpTagOption[]>([])
-  const [authors, setAuthors] = useState<WpAuthorOption[]>([])
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Cliente, tags e autores em paralelo (antes as tags esperavam o cliente chegar)
+  const clientQuery = useQuery(queries.client(clientId), {
+    placeholder: () => getQueryData<Client[]>(queries.clients().key)?.find((c) => c.id === clientId),
+  })
+  const tagsQuery = useQuery(queries.wpTags(clientId))
+  const authorsQuery = useQuery(queries.wpAuthors(clientId))
+  const client = clientQuery.data ?? null
+  const tags = tagsQuery.data ?? []
+  const authors = authorsQuery.data ?? []
+  const loadError =
+    (!tagsQuery.data && tagsQuery.error?.message) ||
+    (!authorsQuery.data && authorsQuery.error?.message) ||
+    null
 
   const [wpPostType, setWpPostType] = useState<WpPostType>(initialWpPostType)
   const [mode, setMode] = useState<'now' | 'schedule'>(initialAgendadoPara ? 'schedule' : 'schedule')
@@ -57,35 +62,22 @@ export function PublishPanel({
     setWpPostType(initialWpPostType)
   }, [initialWpPostType])
 
-  useEffect(() => {
-    api.clients.get(clientId).then((c) => {
-      setClient(c)
-      const localDefault = defaultScheduleLocal(c.timezone)
-      const fromBriefing =
-        initialAgendadoPara != null
-          ? utcIsoToLocalDatetime(initialAgendadoPara, c.timezone)
-          : ''
-      setScheduleLocal(fromBriefing || localDefault)
-      if (initialAgendadoPara) setMode('schedule')
-      if (initialCategoriaIds && initialCategoriaIds.length > 0) {
-        setCategoriaId(initialCategoriaIds[0] ?? null)
-      } else if (c.categoria_padrao_id) {
-        setCategoriaId(c.categoria_padrao_id)
-      }
-      if (c.autor_padrao_id) setAutorId(c.autor_padrao_id)
-    })
-  }, [clientId, initialAgendadoPara, initialCategoriaIds])
-
-  useEffect(() => {
-    if (!client) return
-    setLoadError(null)
-    Promise.all([api.clients.wpTags(clientId), api.clients.wpAuthors(clientId)])
-      .then(([tgs, auths]) => {
-        setTags(tgs)
-        setAuthors(auths)
-      })
-      .catch((e: Error) => setLoadError(e.message))
-  }, [client, clientId])
+  // Padrões entram no formulário uma vez por cliente; revalidar o artigo não apaga a escolha
+  const [seededFor, setSeededFor] = useState<string | null>(null)
+  if (client && seededFor !== client.id) {
+    setSeededFor(client.id)
+    const localDefault = defaultScheduleLocal(client.timezone)
+    const fromBriefing =
+      initialAgendadoPara != null ? utcIsoToLocalDatetime(initialAgendadoPara, client.timezone) : ''
+    setScheduleLocal(fromBriefing || localDefault)
+    if (initialAgendadoPara) setMode('schedule')
+    if (initialCategoriaIds && initialCategoriaIds.length > 0) {
+      setCategoriaId(initialCategoriaIds[0] ?? null)
+    } else if (client.categoria_padrao_id) {
+      setCategoriaId(client.categoria_padrao_id)
+    }
+    if (client.autor_padrao_id) setAutorId(client.autor_padrao_id)
+  }
 
   async function handlePublish() {
     if (!client) return
